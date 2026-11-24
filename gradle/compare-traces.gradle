@@ -1,0 +1,45 @@
+tasks.register('compareAnalysisTraces') {
+    doLast {
+        assert project.hasProperty('before') && project.hasProperty('after') :
+            'Usage: compareAnalysisTraces -Pbefore=<file> -Pafter=<file>'
+        def beforeFile = file(project.property('before'))
+        def afterFile = file(project.property('after'))
+        assert beforeFile.isFile() : "before trace not found: ${beforeFile}"
+        assert afterFile.isFile() : "after trace not found: ${afterFile}"
+
+        def sectionOf = { File source ->
+            def lines = source.readLines('UTF-8')
+            int start = lines.findIndexOf { it.trim() == '[analysis trace]' }
+            assert start >= 0 : "no [analysis trace] section in ${source.name}"
+            int end = lines.size()
+            for (int i = start + 1; i < lines.size(); i++) {
+                if (lines[i].trim().startsWith('[') && lines[i].trim().endsWith(']')) {
+                    end = i
+                    break
+                }
+            }
+            return lines.subList(start, end)
+        }
+
+        def before = sectionOf(beforeFile)
+        def after = sectionOf(afterFile)
+        def max = Math.max(before.size(), after.size())
+        def mismatches = []
+        for (int i = 0; i < max; i++) {
+            String left = i < before.size() ? before[i] : '<missing>'
+            String right = i < after.size() ? after[i] : '<missing>'
+            if (left != right) {
+                mismatches << "line ${i + 1}: before=[${left}] after=[${right}]".toString()
+            }
+        }
+        if (!mismatches.isEmpty()) {
+            println "Analysis trace mismatch (${mismatches.size()} line(s)):"
+            mismatches.take(20).each { println "  " + it }
+            if (mismatches.size() > 20) {
+                println "  ... and ${mismatches.size() - 20} more"
+            }
+            throw new GradleException('Analysis traces differ: the ItemRef migration changed tree analysis results.')
+        }
+        println "Analysis traces match: ${before.size()} line(s), byte-identical [analysis trace] section."
+    }
+}

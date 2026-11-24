@@ -1,0 +1,106 @@
+tasks.register('verifyConfigSafety') {
+    doLast {
+        def hygiene = file('src/main/java/com/slwold/jeirecipetree/client/ConfigHygiene.java')
+        def safe = file('src/main/java/com/slwold/jeirecipetree/client/SafeConfig.java')
+        def keys = file('src/core/java/com/slwold/jeirecipetree/core/StaleConfigKeys.java')
+        def spec = file('src/main/java/com/slwold/jeirecipetree/JERTConfig.java')
+        def jert = file('src/main/java/com/slwold/jeirecipetree/JERT.java')
+        def ready = file('src/main/java/com/slwold/jeirecipetree/JERTConfigReadiness.java')
+        [hygiene, safe, keys, spec, jert, ready].each { assert it.exists() : "missing ${it}" }
+
+        def jertText = jert.getText('UTF-8')
+        def repairAt = jertText.indexOf('repairStaleConfig();')
+        def registerAt = jertText.indexOf('JERTConfig.register(')
+        assert repairAt >= 0 : 'the config repair must run in the mod constructor'
+        assert registerAt >= 0 : 'the config registration must still happen'
+        assert repairAt < registerAt :
+            'the repair must run BEFORE the config is registered (the framework reads the file later)'
+
+        def offenders = []
+        file('src/main/java/com/slwold/jeirecipetree').eachFileRecurse { f ->
+            if (!f.name.endsWith('.java')) return
+            if (f.name == 'SafeConfig.java' || f.name == 'JERTConfig.java') return
+            if (f.name == 'JERTConfigReadiness.java') return
+            def text = f.getText('UTF-8')
+            if (text =~ /JERTConfig\.\w+\.get\(\)/) {
+                offenders << f.name
+            }
+        }
+        assert offenders.isEmpty() :
+            "configuration must be read through SafeConfig, direct .get() found in: ${offenders}"
+
+        def safeText = safe.getText('UTF-8')
+        assert safeText.contains('catch (Throwable error)') :
+            'SafeConfig must catch Throwable: the config spec can fail with linkage errors too'
+        assert safeText.contains('warnOnce(') :
+            'SafeConfig must report the fallback once instead of silently swallowing it'
+
+        def specText = spec.getText('UTF-8')
+        def knownMatcher = java.util.regex.Pattern
+            .compile('KNOWN_KEYS\\s*=\\s*java\\.util\\.Set\\.of\\((.*?)\\)', java.util.regex.Pattern.DOTALL)
+            .matcher(specText)
+        assert knownMatcher.find() : 'JERTConfig.KNOWN_KEYS must exist'
+        def known = (knownMatcher.group(1) =~ /"([a-zA-Z]+)"/).collect { it[1] }
+        def blocksMatcher = java.util.regex.Pattern
+            .compile('DEFAULT_BLOCKS\\s*=\\s*java\\.util\\.Map\\.ofEntries\\((.*?)\\n    \\);', java.util.regex.Pattern.DOTALL)
+            .matcher(specText)
+        assert blocksMatcher.find() : 'JERTConfig.DEFAULT_BLOCKS must exist'
+        def blocksBody = blocksMatcher.group(1)
+        def blocks = (blocksBody =~ /Map\.entry\("([a-zA-Z]+)"/).collect { it[1] }
+        assert known.toSet() == blocks.toSet() :
+            "KNOWN_KEYS and DEFAULT_BLOCKS must list the same keys: ${known} vs ${blocks}"
+
+        def blockChunks = blocksBody.split('java\\.util\\.Map\\.entry\\(')
+        blockChunks.drop(1).each { chunk ->
+            def keyMatcher = java.util.regex.Pattern.compile('^"([a-zA-Z]+)"').matcher(chunk.trim())
+            assert keyMatcher.find()
+            assert chunk.contains('"#') :
+                "block for ${keyMatcher.group(1)} must start with a comment line"
+        }
+
+        def commentTexts = (blocksBody =~ /"#([^"\\]*(?:\\.[^"\\]*)*?)\\n"/).collect { it[1] }
+        assert !commentTexts.isEmpty() : 'DEFAULT_BLOCKS must carry comment text'
+        commentTexts.each { text ->
+            if (text.startsWith('Allowed Values: ')) return
+            assert specText.contains(text) :
+                "config comment drifted from DEFAULT_BLOCKS (must match .comment(...) verbatim): ${text}"
+        }
+
+        def defined = (specText =~ /\.define(?:List)?\("([a-zA-Z]+)"/).collect { it[1] }
+        def missing = defined.findAll { !known.contains(it) }
+        assert missing.isEmpty() :
+            "these config keys are defined but not registered in KNOWN_KEYS: ${missing}"
+
+        assert keys.getText('UTF-8').contains('isTableHeader') :
+            'the stale-key cleaner must distinguish table-scoped keys from top-level ones'
+        def test = file('src/test/java/com/slwold/jeirecipetree/core/StaleConfigKeysTest.java')
+        assert test.exists() : 'the stale-key regression test must exist'
+        def testText = test.getText('UTF-8')
+        assert testText.contains('replaceVanillaRecipeBook') :
+            'the regression test must use a real legacy key from an older config'
+
+        assert ready.getText('UTF-8').contains('ModConfigEvent.Reloading') :
+            'JERTConfigReadiness must handle ModConfigEvent.Reloading'
+
+        println("Config safety checks passed: ${known.size()} keys registered, "
+            + 'repair-before-register, SafeConfig-only reads, reload event handled')
+    }
+}
+
+tasks.register('verifyConfigPathSource') {
+    doLast {
+        def hygiene = file('src/main/java/com/slwold/jeirecipetree/client/ConfigHygiene.java')
+        assert hygiene.exists()
+        def text = hygiene.getText('UTF-8')
+        assert text.contains('FMLPaths.CONFIGDIR') :
+            'ConfigHygiene must resolve the config dir via FMLPaths (works at construction time)'
+        assert !text.contains('Minecraft.getInstance().gameDirectory') :
+            'Minecraft.getInstance() is null during mod construction; do not use it for the config path'
+        assert text.contains('config path unavailable') :
+            'a missing config path must be reported, never silently swallowed'
+        def jert = file('src/main/java/com/slwold/jeirecipetree/JERT.java').getText('UTF-8')
+        assert jert.contains('config hygiene: {} | file={}') :
+            'the hygiene outcome must be logged unconditionally, including the resolved path'
+        println 'Config path source checks passed: FMLPaths at construction time, outcome always logged'
+    }
+}

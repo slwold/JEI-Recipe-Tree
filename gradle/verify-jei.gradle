@@ -1,0 +1,300 @@
+tasks.register('verifyMinecraftMixinTargets') {
+    dependsOn 'classes'
+    doLast {
+        def mcJars = fileTree(dir: "${project.buildDir}/moddev/artifacts", include: '*-minecraft.jar')
+                .files.findAll { !it.name.contains('merged') && !it.name.contains('sources') }
+        def mcJar = mcJars.find { true }
+        assert mcJar : "Minecraft artifact not found in ${project.buildDir}/moddev/artifacts"
+
+        def classBytes = { String internalName ->
+            new java.util.zip.ZipFile(mcJar).withCloseable { zip ->
+                def entry = zip.getEntry(internalName + '.class')
+                entry == null ? null : zip.getInputStream(entry).bytes
+            }
+        }
+
+        def expectations = [
+            ['net/minecraft/client/gui/screens/inventory/AbstractContainerScreen', 'render',
+             '(Lnet/minecraft/client/gui/GuiGraphics;IIF)V'],
+            ['net/minecraft/client/gui/screens/inventory/AbstractContainerScreen', 'mouseClicked',
+             '(DDI)Z'],
+            ['net/minecraft/client/gui/screens/inventory/AbstractContainerScreen', 'renderSlot',
+             '(Lnet/minecraft/client/gui/GuiGraphics;Lnet/minecraft/world/inventory/Slot;)V']
+        ]
+
+        def problems = []
+        expectations.each { entry ->
+            def (internalName, method, descriptor) = entry
+            def bytes = classBytes(internalName)
+            if (bytes == null) {
+                problems << "missing class ${internalName}"
+                return
+            }
+            def text = new String(bytes, 'ISO-8859-1')
+            if (!text.contains(descriptor)) {
+                problems << "${internalName}#${method} has no descriptor ${descriptor}"
+            }
+            if (!text.contains(method)) {
+                problems << "${internalName} has no method named ${method}"
+            }
+        }
+        assert problems.isEmpty() : "Minecraft mixin target mismatch: ${problems}"
+        println "Minecraft mixin target checks passed: ${expectations.size()} entries"
+    }
+}
+
+tasks.register('verifyRemovedFeatures') {
+    doLast {
+        def banned = [
+            'RecipeBookPage',
+            'RecipeTreeBookContent',
+            'replaceVanillaRecipeBook'
+        ]
+        def offenders = []
+        fileTree('src/main/java').matching { include '**/*.java' }.each { source ->
+            def text = stripComments(source.getText('UTF-8'))
+            banned.each { token ->
+                if (text.contains(token)) {
+                    offenders << "${source.name} -> ${token}"
+                }
+            }
+        }
+        assert offenders.isEmpty() : "removed feature leaked back into source: ${offenders}"
+        println "Removed-feature guard passed: ${banned.size()} tokens absent (code only)"
+    }
+}
+
+tasks.register('verifyOwnMixins') {
+    dependsOn 'classes'
+    doLast {
+        def configFile = file('src/main/resources/jeirecipetree.mixins.json')
+        assert configFile.exists() : 'mixins config missing'
+        def config = new groovy.json.JsonSlurper().parse(configFile, 'UTF-8')
+        def pkg = config.package as String
+        def all = []
+        (config.client ?: []).each { all << it }
+        (config.mixins ?: []).each { all << it }
+        (config.server ?: []).each { all << it }
+
+        def bad = all.findAll { it.contains('.') }
+        assert bad.isEmpty() :
+            "mixins.json declares package='${pkg}', so entries must be simple class names; offending: ${bad}"
+
+        def outputDir = sourceSets.main.output.classesDirs.first()
+        def missing = all.findAll { name ->
+            def rel = "${pkg.replace('.', '/')}/${name}.class"
+            !new File(outputDir, rel).exists()
+        }
+        assert missing.isEmpty() : "mixins.json references classes that were not compiled: ${missing}"
+        println "Own mixin config checks passed: ${all.size()} entries, package=${pkg}"
+    }
+}
+
+tasks.register('verifyCapabilityParity') {
+    doLast {
+        def decisive = [
+            'mezz.jei.common.input.IInputTarget',
+            'mezz.jei.common.transfer.RecipeTransferService'
+        ]
+        def holders = [
+            'client': file('src/main/java/com/slwold/jeirecipetree/client/JeiCapabilities.java'),
+            'mixin' : file('src/main/java/com/slwold/jeirecipetree/mixin/JERTMixinConfigPlugin.java'),
+            'build' : file('gradle/verify-jei.gradle')
+        ]
+        def problems = []
+        holders.each { label, source ->
+            assert source.exists() : "capability parity: missing ${source}"
+            def text = source.getText('UTF-8')
+            decisive.each { token ->
+                if (!text.contains(token)) {
+                    problems << "${label} (${source.name}) is missing ${token}".toString()
+                }
+            }
+        }
+        assert problems.isEmpty() : "capability tokens drifted apart: ${problems}"
+        println "Capability parity passed: ${decisive.size()} decisive JEI class name(s) consistent across " +
+            "${holders.keySet().join(' / ')}"
+    }
+}
+
+tasks.register('verifyJeiCompatibility') {
+    dependsOn 'classes'
+    doLast {
+        def jeiJar = configurations.jeiModel.files.find { it.name.startsWith('jei-') && it.name.endsWith('.jar') }
+        assert jeiJar : "No JEI artifact in the jeiModel configuration (expected ${project.jei_version})"
+
+        def entries = new java.util.zip.ZipFile(jeiJar).withCloseable { zip ->
+            zip.entries().collect { it.name }.findAll { it.startsWith('mezz/jei/') && it.endsWith('.class') } as Set
+        }
+        def classBytes = { String internalName ->
+            new java.util.zip.ZipFile(jeiJar).withCloseable { zip ->
+                def entry = zip.getEntry(internalName + '.class')
+                entry == null ? null : zip.getInputStream(entry).bytes
+            }
+        }
+
+        boolean modernInput = entries.contains('mezz/jei/common/input/IInputTarget.class')
+        boolean transferService = entries.contains('mezz/jei/common/transfer/RecipeTransferService.class')
+        def onlyLegacy = ['IngredientLookupStateLegacyMixin']
+        def onlyService = ['IngredientLookupStateServiceMixin']
+        def onlyModern = ['JeiInteractionTabsMixin', 'JeiInputSceneMixin', 'JeiRecipeNavigationMixin']
+        def skipWhenModern = ['RecipesGuiMixin', 'RecipeGuiTabsMixin']
+
+        int targets = 0, methodsChecked = 0, redirectsChecked = 0, skippedForeign = 0, skippedOptional = 0
+        def sources = fileTree('src/main/java') { include '**/mixin/*.java' }
+        assert !sources.isEmpty()
+
+        sources.each { File source ->
+            String text = source.getText('UTF-8')
+            if (!text.contains('@Mixin')) return
+            String simple = source.name - '.java'
+
+            boolean applicable = !(simple in onlyLegacy && transferService) &&
+                    !(simple in onlyService && !transferService) &&
+                    !(simple in onlyModern && !modernInput) &&
+                    !(simple in skipWhenModern && modernInput)
+            if (!applicable) return
+
+            def imports = [:]
+            (text =~ /(?m)^import\s+([\w.]+)\.([A-Za-z_]\w*);/).each { all, pkg, name -> imports[name] = pkg + '.' + name }
+            def declared = [] as Set
+            def mixinBlock = (text =~ /(?s)@Mixin\s*\((?:[^()]|\([^()]*\))*\)/)
+            assert mixinBlock.find() : "${simple}: no @Mixin(...) found"
+            String declaration = mixinBlock.group(0)
+            (declaration =~ /"([\w.\$]+)"/).each { all, fqn ->
+                if (fqn.contains('.')) declared << fqn
+            }
+            (declaration =~ /([A-Za-z_]\w*)\.class/).each { all, name ->
+                declared << (imports[name] ?: name)
+            }
+            assert !declared.isEmpty() : "${simple}: cannot resolve @Mixin target"
+
+            def jeiTargets = declared.findAll { it.startsWith('mezz.jei.') }
+            skippedForeign += (declared.size() - jeiTargets.size())
+            boolean pseudo = text.contains('@Pseudo')
+            boolean alternativeTargets = jeiTargets.size() > 1
+            def presentTargets = []
+            jeiTargets.each { fqn ->
+                def internal = fqn.replace('.', '/')
+                if (!entries.contains(internal + '.class')) {
+                    if (pseudo || alternativeTargets) {
+                        skippedOptional++
+                        return
+                    }
+                    assert false : "JEI ${project.jei_version}: ${simple} targets missing class ${fqn}"
+                }
+                presentTargets << fqn
+                targets++
+            }
+
+            if (presentTargets.isEmpty()) return
+
+            int redirectIndex = text.indexOf('@Redirect')
+            while (redirectIndex >= 0) {
+                int windowEnd = Math.min(text.length(), redirectIndex + 600)
+                String window = text.substring(redirectIndex, windowEnd)
+                StringBuilder joined = new StringBuilder()
+                (window =~ /"([^"]*)"/).each { all, literal -> joined.append(literal) }
+                def call = (joined.toString() =~ /L(mezz\/jei\/[\w\/$]+);([\w$<>]+)\(/)
+                if (call.find()) {
+                    String owner = call.group(1)
+                    String name = call.group(2)
+                    assert entries.contains(owner + '.class') :
+                            "JEI ${project.jei_version}: ${simple} redirects into missing class ${owner}"
+                    def bytes = classBytes(owner)
+                    assert bytes != null && new String(bytes, 'ISO-8859-1').contains(name) :
+                            "JEI ${project.jei_version}: ${simple} redirects to missing member ${owner}.${name}"
+                    redirectsChecked++
+                }
+                redirectIndex = text.indexOf('@Redirect', redirectIndex + 1)
+            }
+
+            def injectMatcher = (text =~ /(?s)@Inject\s*\((?:[^()]|\([^()]*\))*\)/)
+            while (injectMatcher.find()) {
+                String block = injectMatcher.group(0)
+                if (block.contains('require = 0') || block.contains('require=0')) continue
+                def methodNames = [] as Set
+                (block =~ /method\s*=\s*"([^"]+)"/).each { all, sig -> methodNames << sig }
+                (block =~ /method\s*=\s*\{([^}]+)\}/).each { all, sigs ->
+                    (sigs =~ /"([^"]+)"/).each { m, sig -> methodNames << sig }
+                }
+                methodNames.each { sig ->
+                    String name = sig.contains('(') ? sig.substring(0, sig.indexOf('(')) : sig
+                    if (name.isEmpty()) return
+                    boolean found = presentTargets.any { fqn ->
+                        def bytes = classBytes(fqn.replace('.', '/'))
+                        bytes != null && new String(bytes, 'ISO-8859-1').contains(name)
+                    }
+                    assert found : "JEI ${project.jei_version}: ${simple} injects missing method ${name}"
+                    methodsChecked++
+                }
+            }
+        }
+
+        assert targets > 0 && methodsChecked > 0
+        logger.lifecycle("JEI ${project.jei_version}: ${targets} target classes, ${methodsChecked} injected methods and ${redirectsChecked} redirects verified " +
+                "(modernInput=${modernInput}, transferService=${transferService}, " +
+                "foreign targets skipped=${skippedForeign}, optional @Pseudo targets absent=${skippedOptional})")
+    }
+}
+
+static String stripComments(String source) {
+    def out = new StringBuilder()
+    int i = 0
+    int n = source.length()
+    boolean inBlock = false
+    boolean inString = false
+    boolean inChar = false
+    while (i < n) {
+        char c = source.charAt(i)
+        if (inBlock) {
+            if (c == '*' && i + 1 < n && source.charAt(i + 1) == '/') {
+                inBlock = false
+                i += 2
+                continue
+            }
+            i++
+            continue
+        }
+        if (inString || inChar) {
+            out.append(c)
+            if (c == '\\' && i + 1 < n) {
+                out.append(source.charAt(i + 1))
+                i += 2
+                continue
+            }
+            if ((inString && c == '"') || (inChar && c == '\'')) {
+                inString = false
+                inChar = false
+            }
+            i++
+            continue
+        }
+        if (c == '/' && i + 1 < n && source.charAt(i + 1) == '/') {
+            while (i < n && source.charAt(i) != '\n') {
+                i++
+            }
+            continue
+        }
+        if (c == '/' && i + 1 < n && source.charAt(i + 1) == '*') {
+            inBlock = true
+            i += 2
+            continue
+        }
+        if (c == '"') {
+            inString = true
+            out.append(c)
+            i++
+            continue
+        }
+        if (c == '\'') {
+            inChar = true
+            out.append(c)
+            i++
+            continue
+        }
+        out.append(c)
+        i++
+    }
+    return out.toString()
+}

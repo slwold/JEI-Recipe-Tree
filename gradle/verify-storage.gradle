@@ -1,0 +1,58 @@
+tasks.register('verifyStorageDrivers') {
+    doLast {
+        def drivers = file('src/main/java/com/slwold/jeirecipetree/client/StorageDrivers.java')
+        def integration = file('src/main/java/com/slwold/jeirecipetree/client/StorageNetworkIntegration.java')
+        def entry = file('src/main/java/com/slwold/jeirecipetree/JERT.java')
+        [drivers, integration, entry].each { assert it.exists() : "missing ${it}" }
+
+        def driverText = drivers.getText('UTF-8')
+        def priorities = [
+            'REFINED'       : 10,
+            'BEYOND'        : 20,
+            'BETTER_BEYOND' : 30,
+            'INTEGRATED'    : 40,
+            'FALLBACK'      : 1000
+        ]
+        def values = []
+        priorities.each { name, expected ->
+            def matcher = (driverText =~ /(?m)public static final int ${name} = (\d+);/)
+            assert matcher.find() : "StorageDrivers is missing priority constant ${name}"
+            def actual = matcher.group(1) as int
+            assert actual == expected : "${name} priority changed from ${expected} to ${actual}; update the port plan and this guard together"
+            values << actual
+        }
+        assert values.toSet().size() == values.size() : "driver priorities must be distinct: ${values}"
+        assert values == values.sort() : "priority constants must be declared in ascending order: ${values}"
+
+        def ae2 = file('src/main/java/com/slwold/jeirecipetree/compat/ae2/Ae2StorageDriver.java').getText('UTF-8')
+        def ae2Matcher = (ae2 =~ /(?s)int priority\(\)\s*\{\s*return (\d+);/)
+        assert ae2Matcher.find() : 'Ae2StorageDriver must declare an explicit priority()'
+        def ae2Priority = ae2Matcher.group(1) as int
+        assert ae2Priority > 40 && ae2Priority < 1000 :
+            "AE2 direct driver priority ${ae2Priority} must sit between the reflective drivers and the fallback"
+
+        def integrationText = integration.getText('UTF-8')
+        assert integrationText.contains('StorageDriverRegistry.readWithSource(menu)') :
+            'storedStacks() must read through the driver registry'
+        assert !integrationText.contains('boolean refinedMenu = isRefinedStorageMenu(menu);') :
+            'the old waterfall leaked back into storedStacks()'
+
+        def entryText = entry.getText('UTF-8')
+        assert entryText.contains('StorageDrivers.registerStandard()') : 'standard drivers are never registered'
+        assert entryText.contains('Ae2StorageDriver.register()') : 'AE2 driver is never registered'
+        assert entryText.contains('StorageDrivers.registerFallback()') : 'fallback is never registered'
+        assert entryText.indexOf('StorageDrivers.registerStandard()') < entryText.indexOf('StorageDrivers.registerFallback()') :
+            'fallback must be registered after the standard drivers'
+
+        println "Storage driver checks passed: ${priorities.size()} priorities ascending, " +
+            "AE2=${ae2Priority}, single aggregator call, 3 registration points"
+
+        def ae2Reflection = file('src/main/java/com/slwold/jeirecipetree/client/Ae2StorageIntegration.java').getText('UTF-8')
+        assert ae2Reflection.contains('PacketDistributor.sendToServer(payload)') :
+            'AE2 serverbound payloads must be sent through the NeoForge PacketDistributor (AE2 19.x has no NetworkHandler)'
+        assert !ae2Reflection.contains('"appeng.core.network.NetworkHandler"') :
+            'appeng.core.network.NetworkHandler does not exist in AE2 19.x; keeping it as a target only hides the failure'
+        assert ae2Reflection.contains('JERTLog.debug("ae2: {}", reason)') :
+            'every AE2 failure needs one deduplicated log line; silent returns are why this looked unimplemented'
+    }
+}

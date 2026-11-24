@@ -1,0 +1,122 @@
+tasks.register('verifyLibrarySource') {
+    doLast {
+        def client = file('src/main/java/com/slwold/jeirecipetree/client')
+        def read = { String name -> new File(client, name).getText('UTF-8') }
+
+        def data = read('RecipeTreeData.java')
+        assert !data.contains('RecipeLookup.candidates(') :
+            'tree expansion must not query the JEI recipe index (G1)'
+        assert data.contains('StoredRecipes.forTarget(material.ref())') :
+            'preferredRecipe() must expand from the player library by material identity'
+        assert !data.contains('resolutions.containsKey(key)') :
+            'tree expansion must not require the player to pick each recipe by hand'
+
+        def stored = read('StoredRecipes.java')
+        assert stored.contains('FluidRecipeCompat.containerCount(count)') :
+            'rebuilt fluid stacks need container counts so amountForUnits can restore mB'
+        assert stored.contains('library().match(target)') :
+            'the library output index decides which material is an intermediate'
+        assert stored.contains('BuiltInRegistries.ITEM.getOptional(id)') :
+            'library records must be turned into renderable ItemStacks'
+        assert stored.contains('FluidRecipeCompat.representativeForKey') :
+            'fluid slots must stay renderable'
+
+        def archive = read('RecipeArchive.java')
+        assert archive.contains('IngredientDisplay.amountOf(') :
+            'slot amounts must be the real amount (fluid/chemical mB), never the display count'
+        assert !archive.contains('FluidRecipeCompat.containerCount(slot.amount())') :
+            'fluid slot amounts must stay in mB; folding them to container counts double-converts editor input'
+        assert !read('RecipeTreeScreen.java').contains('rotatingStack') :
+            'node icons must stay on the recorded candidate: rotation makes the tree unreadable'
+        assert archive.contains('StoredRecipes.reload()') :
+            'an import must be visible to tree expansion immediately'
+        assert archive.contains('StoredRecipes.remember(id, snapshot)') :
+            'an import must keep its JEI snapshot for the current session'
+        assert archive.contains('return importLayout(underMouse.get().getRecipeLayout());') :
+            'both import entry points must share one write path'
+
+        def session = read('RecipeTreeSession.java')
+        assert session.contains('public static boolean resolve(')
+        def resolveBody = session.substring(session.indexOf('public static boolean resolve('))
+        assert resolveBody.contains('tree.rebuild()') :
+            'adding a recipe to a selected node must rebuild the tree'
+        assert resolveBody.contains('tree.bindResolution(') :
+            'resolving must bind the chosen recipe to that node: a rebuild alone keeps the library first match'
+
+        def screen = read('RecipeTreeScreen.java')
+        assert screen.contains('new RecipeEditScreen(minecraft.screen, layout, new RecipeDraft(draft))') :
+            'the recipe-page button must open the edit screen'
+        assert !screen.contains('RecipeEditOverlay') :
+            'the overlay approach is gone: JEI draws recipe contents on the same render layer'
+        assert screen.contains('RecipeArchive.draftOf(snapshot, layout)') :
+            'the draft must come from the same snapshot conversion as the final write, plus catalyst slots'
+        assert !screen.contains('RecipeArchive.importLayout(layout)') :
+            'the button must not write the library before the player confirms'
+        def editScreen = read('RecipeEditScreen.java')
+        assert !editScreen.contains('layout.drawRecipe') :
+            'the original recipe preview is gone by decision; look at the real JEI page instead'
+        assert editScreen.contains('super.render(graphics, mouseX, mouseY, partialTick)') :
+            'must call super.render so ContainerScreenEvent fires and the JEI overlays render (javap: mezz/jei/gui/events/GuiEventHandler)'
+        assert editScreen.contains('RecipeArchive.saveRecord(record)') :
+            'only the save/copy actions write the confirmed draft (record carries the target group)'
+        assert !editScreen.contains('importLayout') :
+            'editing must not bypass the draft'
+        assert read('DirectoryRecipePlugin.java').contains(
+            'addGhostIngredientHandler(RecipeEditScreen.class, new EditDragHandler())') :
+            'ghost drag must be registered on the edit screen so items can be dragged into slots'
+        def editPanel = read('RecipeEditPanel.java')
+        assert editPanel.contains('grabFromPicker()') :
+            'the 标签 button must be able to grab an identity into the hand (JEC GuiLabel path)'
+        assert editPanel.contains('private void putHand(int ordinal, int index)') :
+            'an empty cell must accept the hand (JEC WLabel place): a grid the player cannot fill is a dead end'
+        assert !editPanel.contains('openPickerForAdd') :
+            'empty-cell click must not open the picker any more (JEC: empty slot has no branch)'
+        assert editPanel.contains('if (button != 0)') :
+            'right click on a slot must do nothing (JEC WLabel returns false for button 1)'
+        assert editPanel.contains('private void clearHand()') :
+            'clicking blank space and pressing Esc must discard the hand (JecaGui semantics)'
+        assert editPanel.contains('picker.open(') :
+            'clicking a slot must open the candidate picker: cycling candidates is not choosing'
+        assert !editPanel.contains('rotateAlternative') :
+            'candidate cycling is gone; the picker replaces it'
+        assert editPanel.contains('AmountText.HALF') :
+            'the amount badge must be drawn at half size, otherwise it covers the item icon'
+        def picker = read('CandidatePicker.java')
+        assert picker.contains('sink.pick(') :
+            'the picker must hand the chosen identity back instead of writing the draft itself'
+        assert editPanel.contains('callbacks.onSave(draft.toRecord(targetGroup), draft.group())') :
+            'the panel itself must never write: it hands the record + initial group back to its host'
+        assert !(editPanel =~ /RecipeArchive\.\w+\(/) :
+            'the panel must not touch the library at all (constant GROUP reference is fine; calls are not)'
+        assert screen.contains('category() == null') :
+            'library recipes have no JEI category; rendering must tolerate that'
+        assert !screen.contains('showCandidateDirectory') :
+            'the tree must not open the JEI directory page: it has no callback back into the node'
+        assert screen.contains('chooseInput(node)') :
+            'picking which item a slot means must go through the picker (one entry point)'
+
+        assert data.contains('if (childRecipe == null && !selected.explicit())') :
+            'a same-type input slot must try every alternative when looking up recipes'
+        assert stored.contains('ItemKeys.withIdentity(display, key)') :
+            'hand-written keys must keep their identity on the display stack'
+        def keys = read('ItemKeys.java')
+        assert keys.contains('IDENTITY_TAG') :
+            'the identity override must live in the single ItemStack -> ItemRef converter'
+        [stored, keys].each { text ->
+            assert !(text =~ /mekanism\./) :
+                'no mod-typed code outside IngredientDisplay: quantity reflection is isolated there'
+        }
+
+        def archiveImports = read('RecipeArchive.java')
+        assert archiveImports.contains('RecipeLibraryStore.looksCorrupt(file)') :
+            'a corrupt library file must block the import write path'
+        def store = read('RecipeLibraryStore.java')
+        assert store.contains('public static boolean looksCorrupt') :
+            'corrupt-JSON detection must be exposed for the import path'
+        assert store.contains('".bak"') :
+            'every overwrite must leave a .bak of the previous file'
+
+        println 'Library source checks passed: button adds to library, node resolve rebuilds, ' +
+            'same-type candidates expand, hand-written keys keep identity, no mod-specific chemical code'
+    }
+}

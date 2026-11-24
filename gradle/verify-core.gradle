@@ -1,0 +1,47 @@
+tasks.register('verifyCoreIsolation') {
+    dependsOn 'compileCoreJava'
+    doLast {
+        def polluting = configurations.coreCompileClasspath.files.findAll { file ->
+            def name = file.name.toLowerCase(java.util.Locale.ROOT)
+            name.contains('minecraft') || name.contains('neoforge') || name.startsWith('jei-')
+        }
+        assert polluting.isEmpty() :
+            "core compile classpath must stay version-neutral, but contains: ${polluting*.name}"
+
+        def sources = fileTree('src/core/java') { include '**/*.java' }
+        assert !sources.isEmpty() : 'core source set is empty: src/core/java has no .java files'
+
+        def versionBound = [
+            'net.minecraft', 'net.neoforged', 'net.minecraftforge',
+            'mezz.jei', 'appeng.', 'com.mojang', 'org.lwjgl'
+        ]
+        def leaked = []
+        def upward = [
+            'com.slwold.jeirecipetree.client',
+            'com.slwold.jeirecipetree.compat',
+            'com.slwold.jeirecipetree.mixin',
+            'com.slwold.jeirecipetree.JERT'
+        ]
+        def reversed = []
+        sources.each { source ->
+            def text = source.getText('UTF-8')
+            versionBound.each { token ->
+                if (text.contains(token)) {
+                    leaked << "${source.name} -> ${token}".toString()
+                }
+            }
+            upward.each { token ->
+                if (text.contains(token)) {
+                    reversed << "${source.name} -> ${token}".toString()
+                }
+            }
+        }
+        assert leaked.isEmpty() : "core must not reference version-bound types: ${leaked}"
+        assert reversed.isEmpty() : "core must not depend on upper layers: ${reversed}"
+
+        def classes = files(sourceSets.core.output.classesDirs).asFileTree.matching { include '**/*.class' }
+        assert !classes.isEmpty() : 'core compiled nothing; the source set is not wired correctly'
+        println "Core isolation checks passed: ${sources.size()} source file(s), " +
+            "${classes.size()} class file(s), classpath clean, no version-bound or upward references"
+    }
+}

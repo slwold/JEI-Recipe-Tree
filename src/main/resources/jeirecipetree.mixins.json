@@ -1,0 +1,29 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "com.slwold.jeirecipetree.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "plugin": "com.slwold.jeirecipetree.mixin.JERTMixinConfigPlugin",
+  "mixins": [],
+  "client": [
+    "AbstractContainerScreenMixin",
+    "BetterBeyondSidebarRendererMixin",
+    "BookmarkListAccessor",
+    "BookmarkListMixin",
+    "BookmarkOverlayMixin",
+    "IngredientLookupStateLegacyMixin",
+    "IngredientLookupStateServiceMixin",
+    "IntegratedTerminalScreenMixin",
+    "JeiInputSceneMixin",
+    "JeiInteractionTabsMixin",
+    "JeiRecipeNavigationMixin",
+    "RecipeGuiLayoutsMixin",
+    "RecipeGuiTabsMixin",
+    "RecipeLayoutWithButtonsMixin",
+    "RecipeSlotClickTargetFactoryMixin",
+    "RecipesGuiMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

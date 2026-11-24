@@ -1,0 +1,234 @@
+plugins {
+    id 'java-library'
+    id 'net.neoforged.moddev' version '1.0.24'
+}
+
+version = "${minecraft_version}-${mod_version}"
+group = mod_group_id
+
+base {
+    archivesName = mod_id
+}
+
+java.toolchain.languageVersion = JavaLanguageVersion.of(21)
+
+neoForge {
+    version = neo_version
+}
+
+sourceSets {
+    core {
+        java { srcDir 'src/core/java' }
+    }
+}
+
+dependencies {
+    implementation sourceSets.core.output
+}
+
+tasks.named('jar') {
+    from sourceSets.core.output
+}
+
+repositories {
+    mavenCentral()
+    maven {
+        name = 'BlameJared'
+        url = 'https://maven.blamejared.com'
+        content { includeGroup 'mezz.jei' }
+    }
+}
+
+dependencies {
+    compileOnly "mezz.jei:jei-1.21.1-neoforge:${jei_compile_version}"
+    compileOnly files('libs/appliedenergistics2-19.2.18.jar')
+    testImplementation "mezz.jei:jei-1.21.1-neoforge:${jei_compile_version}"
+    testImplementation 'com.electronwill.night-config:core:3.8.0'
+    testImplementation 'com.electronwill.night-config:toml:3.8.0'
+}
+
+configurations {
+    jeiModel {
+        canBeConsumed = false
+        canBeResolved = true
+    }
+}
+
+dependencies {
+    jeiModel "mezz.jei:jei-1.21.1-neoforge:${jei_version}"
+}
+
+tasks.withType(ProcessResources).configureEach {
+    var replaceProperties = [
+        minecraft_version     : minecraft_version,
+        minecraft_version_range: minecraft_version_range,
+        neo_version           : neo_version,
+        neo_version_range     : neo_version_range,
+        jei_version           : jei_version,
+        jei_version_range     : jei_version_range,
+        loader_version_range  : loader_version_range,
+        mod_id                : mod_id,
+        mod_name              : mod_name,
+        mod_license           : mod_license,
+        mod_version           : mod_version,
+        mod_authors           : mod_authors,
+        mod_credits           : mod_credits
+    ]
+    inputs.properties replaceProperties
+    filesMatching(['META-INF/neoforge.mods.toml', 'pack.mcmeta']) {
+        expand replaceProperties
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}
+
+def mcJar = layout.buildDirectory.file('moddev/artifacts/neoforge-21.1.80-minecraft.jar')
+
+tasks.register('testRecipeTreeMaterials', JavaExec) {
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.slwold.jeirecipetree.client.RecipeTreeOutputChoicesTest'
+}
+sourceSets.test.compileClasspath += sourceSets.main.compileClasspath
+
+tasks.register('testJeiInputBridge', JavaExec) {
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath + files(mcJar)
+    mainClass = 'com.slwold.jeirecipetree.client.JeiInputBridgeTest'
+}
+
+tasks.register('testCoreItemRef', JavaExec) {
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.slwold.jeirecipetree.core.ItemRefTest'
+}
+
+tasks.register('testCoreAmounts', JavaExec) {
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.slwold.jeirecipetree.core.AmountsTest'
+}
+
+tasks.register('testItemRefKeyParity', JavaExec) {
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.slwold.jeirecipetree.core.ItemRefKeyParityTest'
+}
+
+tasks.register('testStorageDrivers', JavaExec) {
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.slwold.jeirecipetree.client.StorageDriverRegistryTest'
+}
+
+tasks.register('testCraftQueue', JavaExec) {
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.slwold.jeirecipetree.core.CraftQueueTest'
+}
+
+tasks.register('testCostCalculator', JavaExec) {
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.slwold.jeirecipetree.core.CostCalculatorTest'
+}
+
+tasks.register('testCraftStepOrder', JavaExec) {
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.slwold.jeirecipetree.core.CraftStepOrderTest'
+}
+
+tasks.register('testCostCalculatorOracle', JavaExec) {
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.slwold.jeirecipetree.core.CostCalculatorOracleTest'
+}
+
+tasks.register('testRecipeLibrary', JavaExec) {
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath + sourceSets.main.compileClasspath
+    mainClass = 'com.slwold.jeirecipetree.client.RecipeLibraryStoreTest'
+}
+
+tasks.register('testTransferPhase', JavaExec) {
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.slwold.jeirecipetree.core.TransferPhaseTest'
+}
+
+tasks.register('testViewportFit', JavaExec) {
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.slwold.jeirecipetree.core.ViewportFitTest'
+}
+
+tasks.register('testStaleConfigKeys', JavaExec) {
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.slwold.jeirecipetree.core.StaleConfigKeysTest'
+}
+
+tasks.register('testComplexityBudget', JavaExec) {
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.slwold.jeirecipetree.core.ComplexityBudgetTest'
+}
+
+tasks.register('testJeiCapabilities', JavaExec) {
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.slwold.jeirecipetree.client.JeiCapabilitiesTest'
+}
+
+tasks.named('check') {
+    dependsOn 'testRecipeTreeMaterials', 'testJeiInputBridge', 'testCoreItemRef', 'testCoreAmounts', 'testJeiCapabilities', 'testItemRefKeyParity', 'testStorageDrivers', 'testCraftQueue', 'testTransferPhase', 'testViewportFit', 'testStaleConfigKeys', 'testComplexityBudget', 'testCostCalculator', 'testCraftStepOrder', 'testCostCalculatorOracle', 'testRecipeLibrary'
+}
+tasks.named('test') { enabled = false }
+
+apply from: 'gradle/verify-jei.gradle'
+apply from: 'gradle/verify-core.gradle'
+apply from: 'gradle/verify-identity.gradle'
+apply from: 'gradle/verify-storage.gradle'
+apply from: 'gradle/verify-transfer.gradle'
+apply from: 'gradle/verify-render.gradle'
+apply from: 'gradle/verify-ui.gradle'
+apply from: 'gradle/verify-observability.gradle'
+apply from: 'gradle/verify-config.gradle'
+apply from: 'gradle/verify-docs.gradle'
+apply from: 'gradle/verify-scan-gating.gradle'
+apply from: 'gradle/verify-library.gradle'
+apply from: 'gradle/compare-traces.gradle'
+tasks.named('check') {
+    dependsOn 'verifyJeiCompatibility'
+    dependsOn 'verifyOwnMixins'
+    dependsOn 'verifyMinecraftMixinTargets'
+    dependsOn 'verifyRemovedFeatures'
+    dependsOn 'verifyCoreIsolation'
+    dependsOn 'verifyCapabilityParity'
+    dependsOn 'verifyIdentityLayer'
+    dependsOn 'verifyStorageDrivers'
+    dependsOn 'verifyTransferQueue'
+    dependsOn 'verifyStartupDiagnostics'
+    dependsOn 'testConfigBlocks'
+    dependsOn 'verifyConfigSafety'
+    dependsOn 'verifyConfigPathSource'
+    dependsOn 'verifyDocCounts'
+    dependsOn 'verifyTransferObservability'
+    dependsOn 'verifyRenderLayers'
+    dependsOn 'verifyTreeLayout'
+    dependsOn 'verifySlotClassification'
+    dependsOn 'verifyScanGating'
+    dependsOn 'verifyLibrarySource'
+    dependsOn 'verifyViewportFit'
+    dependsOn 'verifyUiLayers'
+    dependsOn 'verifySessionMigration'
+}
+
+tasks.register('testConfigBlocks', JavaExec) {
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.output + sourceSets.main.output + sourceSets.main.compileClasspath + files(mcJar)
+    mainClass = 'com.slwold.jeirecipetree.ConfigBlocksTest'
+}

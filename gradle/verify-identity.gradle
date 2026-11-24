@@ -1,0 +1,30 @@
+tasks.register('verifyIdentityLayer') {
+    doLast {
+        def client = file('src/main/java/com/slwold/jeirecipetree/client')
+        def read = { String name -> new File(client, name).getText('UTF-8') }
+
+        def keys = read('ItemKeys.java')
+        assert keys.contains('public static ItemRef of(ItemStack stack)') :
+            'ItemKeys must remain the single ItemStack -> ItemRef conversion point'
+        assert keys.contains('getUniqueId(stack, UidContext.Ingredient)') :
+            'the JEI unique-id algorithm must live in ItemKeys (T2 only needs to change this one place)'
+
+        def adopters = ['SupplyLedger.java', 'RecipePlanner.java', 'RecipeLookup.java', 'RecipeTreeData.java']
+        def missing = adopters.findAll { !read(it).contains('com.slwold.jeirecipetree.core.ItemRef') }
+        assert missing.isEmpty() : "ItemRef is still dead code in: ${missing}"
+
+        def data = read('RecipeTreeData.java')
+        assert !data.contains('getUniqueId(stack') :
+            'the identity algorithm leaked back into RecipeTreeData; delegate to ItemKeys instead'
+        assert data.contains('ItemKeys.legacy(ItemKeys.of(stack))') :
+            'ingredientKey must delegate to ItemKeys (verbatim contract, see ItemRefKeyParityTest)'
+
+        assert data.contains('Map<String, MutableCost> totalCosts') :
+            'cost signatures must stay String-keyed (they are candidate-combination keys, not identity)'
+        assert data.contains('Map<ItemRef, MutableCost> totalRemainders') :
+            'remainder table must stay ItemRef-keyed (identity, not signature)'
+
+        println "Identity layer checks passed: ItemKeys is the only converter, " +
+            "${adopters.size()} layers use ItemRef, composite-signature keys stay documented"
+    }
+}

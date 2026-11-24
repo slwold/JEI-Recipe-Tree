@@ -1,0 +1,48 @@
+tasks.register('verifyTransferQueue') {
+    doLast {
+        def transfer = file('src/main/java/com/slwold/jeirecipetree/client/RecipeTreeTransfer.java')
+        def stepState = file('src/main/java/com/slwold/jeirecipetree/client/TransferStepState.java')
+        def core = file('src/core/java/com/slwold/jeirecipetree/core/CraftQueue.java')
+        def parityTest = file('src/test/java/com/slwold/jeirecipetree/core/CraftQueueTest.java')
+        [transfer, stepState, core, parityTest].each { assert it.exists() : "missing ${it}" }
+
+        def text = transfer.getText('UTF-8')
+        assert text.contains('com.slwold.jeirecipetree.core.CraftQueue') :
+            'RecipeTreeTransfer must use the core CraftQueue'
+        assert text.contains('private static final TransferStepState step = new TransferStepState()') :
+            'the per-step async state must live in TransferStepState, not bare static fields'
+
+        def bareNames = ['pendingCrafts', 'pendingCraftIndex', 'PendingCraft',
+                         'pendingLoadedBatches', 'pendingChunk', 'pendingCraftResultSlot',
+                         'pendingMenuId', 'pendingResultSlot', 'pendingGenericResultProbe',
+                         'pendingAe2Carry', 'pendingAe2NetworkDeposit', 'pendingAe2NetworkRequest',
+                         'pendingAe2NetworkCount', 'pendingAe2PlacementSlot',
+                         'pendingAe2PlacementInFlight', 'pendingAe2PlacementCount',
+                         'pendingAe2PlacementInventoryBefore', 'pendingAe2OutputKey',
+                         'pendingAe2OutputStack', 'pendingAe2InventoryBefore',
+                         'pendingVanillaPickup', 'pendingPickupAttempts',
+                         'waitFrames', 'emptyFrames']
+        def leaked = bareNames.findAll { (text =~ /(?<!step\.)\b${it}\b/).find() }
+        assert leaked.isEmpty() : "queue/step state leaked back into bare fields: ${leaked}"
+
+        assert text.contains('queue.completeStep()') : 'queue advancement must live in CraftQueue'
+        assert text.contains('queue.startStep(') : 'step setup must live in CraftQueue'
+        assert text.contains('step.resetAll()') : 'clearing a session must delegate to TransferStepState'
+        assert text.contains('step.resetStep()') : 'per-step reset must delegate to TransferStepState'
+
+        def stateText = stepState.getText('UTF-8')
+        assert stateText.contains('void resetStep()') && stateText.contains('void resetAll()') :
+            'TransferStepState must own both reset scopes'
+        assert stateText.contains('String describe()') : 'the state must be inspectable from logs/F9'
+        def stepResets = (stateText =~ /(?m)^\s{8}ae2OutputKey = "";\s*$/).count
+        assert stepResets == 1 : "AE2 step reset must exist exactly once, found ${stepResets}"
+
+        assert core.getText('UTF-8').contains('public boolean completeStep()') :
+            'CraftQueue must own the advancement algorithm'
+        assert parityTest.getText('UTF-8').contains('OldState') :
+            'the old bare-field algorithm must remain as a parity oracle in the test'
+
+        println('Transfer queue checks passed: core-owned queue, TransferStepState-owned async state, '
+            + 'single reset rule, parity oracle present')
+    }
+}

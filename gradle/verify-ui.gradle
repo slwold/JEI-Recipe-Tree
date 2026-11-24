@@ -1,0 +1,86 @@
+tasks.register('verifyUiLayers') {
+    doLast {
+        def clientDir = 'src/main/java/com/slwold/jeirecipetree/client/'
+        def mixinDir = 'src/main/java/com/slwold/jeirecipetree/mixin/'
+        def screen = file(clientDir + 'RecipeTreeScreen.java')
+        def favorites = file(clientDir + 'RecipeTreeFavorites.java')
+        def session = file(clientDir + 'RecipeTreeSession.java')
+        def layout = file(clientDir + 'TreeLayout.java')
+        def row = file(clientDir + 'TreeRow.java')
+        def persistence = file(clientDir + 'SessionPersistence.java')
+        def facade = file(clientDir + 'JeiTreeIntegration.java')
+        [screen, favorites, session, layout, row, persistence, facade].each {
+            assert it.exists() : "missing ${it}"
+        }
+
+        def direct = []
+        file(mixinDir).listFiles().findAll { it.name.endsWith('.java') }.each { file ->
+            def text = file.getText('UTF-8')
+            ['RecipeTreeFavorites.', 'RecipeTreeSession.', 'RecipeTreeScreen.'].each { token ->
+                if (text.contains(token)) {
+                    direct << "${file.name}: ${token}"
+                }
+            }
+        }
+        assert direct.isEmpty() : "mixin must go through JeiTreeIntegration, direct calls found: ${direct}"
+        assert facade.getText('UTF-8').contains('public final class JeiTreeIntegration') :
+            'the mixin facade must exist'
+
+        def layoutText = layout.getText('UTF-8')
+        def screenText = screen.getText('UTF-8')
+        ['RECIPE_NODE_WIDTH', 'LEAF_NODE_WIDTH', 'NODE_HEIGHT', 'X_PITCH', 'Y_SPACING',
+         'COST_SPACING', 'MODE_BUTTON_SIZE', 'MODE_BUTTON_HIT', 'TRANSFER_BUTTON_SIZE'].each { name ->
+            assert layoutText.contains("int ${name} =") : "TreeLayout must own ${name}"
+            assert !(screenText =~ /private static final int ${name} =/).find() :
+                "${name} must not be redeclared in RecipeTreeScreen"
+        }
+        assert screenText.contains('private final TreeLayout layout = new TreeLayout();') :
+            'the screen must delegate layout to TreeLayout'
+
+        assert screenText.contains('private static RecipeTreeScreen instance') :
+            'the tree screen must be a singleton: stacked instances draw several trees on top of each other'
+        assert screenText.contains('minecraft.screen instanceof RecipeTreeScreen') :
+            'openCurrent() must detect an already-open tree screen instead of stacking a second one'
+        assert screenText.count('new RecipeTreeScreen(') <= 1 :
+            'openCurrent() must not construct a screen per call (exactly one construction site: the singleton factory)'
+
+        def rowText = row.getText('UTF-8')
+        assert rowText.contains('public final class TreeRow') : 'the explicit row model must exist'
+        assert rowText.contains('public long owned()') && rowText.contains('public long total()') :
+            'the row model must own the amount computations'
+        def favoritesText = favorites.getText('UTF-8')
+        assert favoritesText.contains('private final TreeRow row;') :
+            'the proxy must delegate to TreeRow'
+        assert !(favoritesText =~ /private final ITypedIngredient<\?> typed;/).find() :
+            'the proxy must not keep its own copy of the row data'
+
+        def sessionText = session.getText('UTF-8')
+        def persistenceText = persistence.getText('UTF-8')
+        assert !sessionText.contains('new GsonBuilder') :
+            'JSON writing must live in SessionPersistence'
+        ['crafting', 'recipe', 'category', 'registry', 'output', 'count', 'batches', 'item'].each { field ->
+            assert (persistenceText =~ /addProperty\(\s*"${field}"/).find() :
+                "session field ${field} must be written in SessionPersistence"
+        }
+        assert persistenceText.contains('public static final String FILE_NAME = "recipe_tree_session.json"') :
+            'the session file name is a frozen contract'
+
+        println('UI layer checks passed: mixin facade only, layout constants in TreeLayout, '
+            + 'row model owns computations, session format frozen in SessionPersistence')
+    }
+}
+
+tasks.register('verifySessionMigration') {
+    doLast {
+        def clientDir = 'src/main/java/com/slwold/jeirecipetree/client/'
+        def sources = ['SessionPersistence.java', 'RecipeTreeDefaults.java']
+            .collect { file(clientDir + it).getText('UTF-8') }
+        sources.each { text ->
+            assert text.contains('"jeirecipetree"') :
+                'config paths must resolve under the modId directory'
+            assert !(text =~ /"jeicrt"|"ject"/) :
+                'no config directory other than the modId may be touched'
+        }
+        println 'Config path checks passed: single modId directory, no foreign config dirs'
+    }
+}

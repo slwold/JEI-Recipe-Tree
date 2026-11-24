@@ -1,0 +1,62 @@
+tasks.register('verifyScanGating') {
+    doLast {
+        def client = file('src/main/java/com/slwold/jeirecipetree/client')
+        def read = { String name -> new File(client, name).getText('UTF-8') }
+
+        def ledger = read('SupplyLedger.java')
+        assert ledger.contains('if (!craftingModeEnabled)') :
+            'SupplyLedger.snapshot() must gate every scan behind craftingMode (R4)'
+        assert ledger.contains('cachedRevision == revision') :
+            'the scan cache key must be an explicit revision, not a 50 ms tick (R5)'
+        assert ledger.contains('MIN_SCAN_INTERVAL_NANOS') :
+            'two real scans must be throttled'
+        assert ledger.contains('detectContentChange()') :
+            'snapshot() must self-detect content changes, not rely on a screen being focused'
+        assert ledger.contains('CONTENT_HASH_INTERVAL_NANOS') :
+            'the content probe must be throttled (0.2 s), not run on every read'
+        assert ledger.contains('public static long contentHash()') :
+            'the content hash must cover the open container, not just the player inventory'
+        assert ledger.contains('static long scanCount()') :
+            'scanCount() is the acceptance counter'
+        assert ledger.contains('planningSupply()') :
+            'the planning path must add the terminal network stock on top of the player view'
+        assert ledger.contains('StorageNetworkIntegration.snapshot()') :
+            'network stock must be read through the cached driver snapshot'
+        assert ledger.contains('scanNetwork(') :
+            'network stock must be collected in its own bucket, not merged into the player view'
+
+        def screen = read('RecipeTreeScreen.java')
+        assert screen.contains('SupplyLedger.setCraftingMode(crafting)') :
+            'tick() must sync the crafting-mode gate'
+        assert screen.contains('SupplyLedger.contentHash()') :
+            'tick() must be driven by the content hash (inventory + open container, R5)'
+        assert (screen =~ /if \(hash == lastInventoryHash\) \{\s*return;\s*\}/).find() :
+            'tick() must skip analysis when the inventory hash is unchanged'
+
+        def data = read('RecipeTreeData.java')
+        assert !data.contains('analysisTick()') :
+            'the 50 ms tick must no longer be a cache key'
+        assert !data.contains('findCandidateWithSupply') :
+            'variant selection must not read inventory'
+        assert data.contains('SupplyLedger.planningSupply()') :
+            'progress/deficit must include the terminal network stock'
+        assert !data.contains('CostLedger') :
+            'the rollback ledger must be gone together with recursion'
+
+        def planner = read('RecipePlanner.java')
+        assert !planner.contains('canSupplyCandidate') :
+            'recursive feasibility search must be gone (C1)'
+        assert !planner.contains('CandidateSearchBudget') :
+            'the visit budget must be gone together with recursion'
+
+        assert !read('RecipeTreeTransfer.java').contains('findCandidateWithSupply') :
+            'transfer-time variant selection must not read inventory'
+
+        def mixin = file('src/main/java/com/slwold/jeirecipetree/mixin/AbstractContainerScreenMixin.java')
+        assert mixin.getText('UTF-8').contains('SupplyLedger.craftingMode()') :
+            'the inventory highlight path must be gated by craftingMode (R4)'
+
+        println 'Scan gating checks passed: craftingMode gate, content-hash driven tick, ' +
+            'revision cache key, throttling, PLAYER+NETWORK deficit via cached snapshot, recursion removed'
+    }
+}

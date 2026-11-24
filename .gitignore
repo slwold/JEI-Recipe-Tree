@@ -1,0 +1,50 @@
+# MacOS DS_Store files
+.DS_Store
+
+# Gradle cache folder
+.gradle
+.gradle-*
+
+# Gradle build folder
+build
+
+# IntelliJ
+out/
+.idea
+*.iml
+*.ipr
+*.iws
+# mpeltonen/sbt-idea plugin
+.idea_modules/
+
+# virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
+hs_err_pid*
+
+# Common working directory
+run
+runs/
+
+# 测试运行（headless 测试里的 slf4j）写出的日志目录，不是产物。
+logs/
+
+# Local source/cache material used while developing the addon
+.tmp-*
+
+# Local auxiliary Git worktrees
+.codex-worktree-*/
+
+# 阶段快照（每轮交付的 zip 备份）。
+# 版本历史改由 Git 承担后，快照目录的职责被取代：Git 记录的是**逐次提交**，
+# 比 zip 更可追溯、也不占仓库体积（71 个快照共 16MB）。磁盘上的既有快照保持不动。
+backups/
+
+# 编译期本地依赖（AE2 API jar，8MB 第三方二进制）。
+# 需要它才能编译 AE2 兼容层；获取方式见 README「构建」一节。
+libs/
+
+# VS Code
+.vscode/
+
+# 操作系统
+Thumbs.db
+.DS_Store

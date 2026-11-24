@@ -1,0 +1,44 @@
+modLoader="javafml"
+loaderVersion="${loader_version_range}"
+license="${mod_license}"
+
+[[mods]]
+modId="${mod_id}"
+version="${mod_version}"
+displayName="${mod_name}"
+authors="${mod_authors}"
+credits="${mod_credits}"
+logoFile="logo.png"
+# 纯客户端附加件：按 NeoForge 规范在 toml 与 @Mod(dist) 两处声明客户端专属
+side="CLIENT"
+# Core JEI features work client-only. The optional AE2 pattern batch action
+# requires this mod on the server, but a client can still join without it.
+displayTest="IGNORE_ALL_VERSION"
+# 描述直接写在 toml（UTF-8），不经 gradle.properties：
+# Gradle 用 ISO-8859-1 读 properties，中文占位符会被双重编码成乱码。
+description='''客户端 JEI 附属：把配方展开成可交互的多层配方树，统计总耗材、余料与制作步骤，并可从背包、AE2/RS 与附近容器取料。
+Client-side JEI add-on: interactive multi-layer crafting tree with material totals, leftovers, craft steps and one-click material fetch from nearby storage.'''
+
+[[mixins]]
+config="${mod_id}.mixins.json"
+
+[[dependencies.${mod_id}]]
+modId="neoforge"
+type="required"
+versionRange="${neo_version_range}"
+ordering="NONE"
+side="BOTH"
+
+[[dependencies.${mod_id}]]
+modId="minecraft"
+type="required"
+versionRange="${minecraft_version_range}"
+ordering="NONE"
+side="BOTH"
+
+[[dependencies.${mod_id}]]
+modId="jei"
+type="optional"
+versionRange="${jei_version_range}"
+ordering="AFTER"
+side="CLIENT"

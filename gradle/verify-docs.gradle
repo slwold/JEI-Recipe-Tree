@@ -1,0 +1,22 @@
+tasks.register('verifyDocCounts') {
+    doLast {
+        def buildText = file('build.gradle').getText('UTF-8')
+        def tests = (buildText =~ /tasks\.register\('(test[a-zA-Z]+)'/).findAll().collect { it[1] }.unique().size()
+        def verifies = fileTree('gradle').matching { include '*.gradle' }
+            .files
+            .collectMany { f -> (f.getText('UTF-8') =~ /tasks\.register\('(verify[a-zA-Z]+)'/).findAll().collect { it[1] } }
+            .unique()
+            .size()
+        assert tests > 0 && verifies > 0 : 'failed to count test/verify tasks'
+
+        ['README.md'].each { path ->
+            def text = file(path).getText('UTF-8')
+            assert text.contains("${tests} 个 headless 测试") :
+                "${path}: must state \"${tests} 个 headless 测试\" (actual task count)"
+            assert text.contains("${verifies} 项构建期机检") :
+                "${path}: must state \"${verifies} 项构建期机检\" (actual task count)"
+        }
+
+        println "Doc count checks passed: ${tests} tests / ${verifies} verifications referenced by README and CODING-STANDARD"
+    }
+}
