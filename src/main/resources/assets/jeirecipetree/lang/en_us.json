@@ -42,6 +42,7 @@
   "jeirecipetree.configuration.recipeTreeEnabled": "Show recipe tree buttons",
   "jeirecipetree.configuration.disabledRecipeTypes": "Recipe types excluded from the tree",
   "jeirecipetree.configuration.automaticCraftingEnabled": "Allow Ctrl-left-click auto crafting",
+  "jeirecipetree.configuration.perItemCrafting": "Finish one crafted item at a time",
   "jeirecipetree.configuration.developerMode": "Developer mode (verbose diagnostic logging)",
   "jeirecipetree.configuration.sophisticatedRestockEnabled": "Enable fetch-materials (Ctrl+left on the global tree button; needs Sophisticated Item Actions)",
   "jeirecipetree.configuration.treeTheme": "Recipe-tree colour theme (paper / classic / blueprint / blueprint_dark / ae2 / dark)",
@@ -141,6 +142,7 @@
   "jeirecipetree.configuration.recipeTreeEnabled.tooltip": "Add recipe-tree and crafting-assistant buttons to JEI recipe layouts.",
   "jeirecipetree.configuration.disabledRecipeTypes.tooltip": "Recipe type ids excluded from the recipe tree, for example [\"minecraft:blasting\"].",
   "jeirecipetree.configuration.automaticCraftingEnabled.tooltip": "Allow Ctrl-left-click in the recipe-tree bookmarks to automatically craft missing intermediate steps.",
+  "jeirecipetree.configuration.perItemCrafting.tooltip": "When enabled, an automatic craft stops after one finished item (including its intermediates) before starting the next. Useful when a recipe needs unstackable intermediates such as tools, which would otherwise fill the inventory. Applies to the vanilla crafting table and the player 2x2 grid only; AE2 and RTS terminals always craft everything in one pass.",
   "jeirecipetree.configuration.developerMode.tooltip": "Developer mode: verbose diagnostic logging.",
   "jeirecipetree.configuration.sophisticatedRestockEnabled.tooltip": "Show the fetch-materials button in the recipe book (requires Sophisticated Item Actions).",
   "jeirecipetree.configuration.treeTheme.tooltip": "Recipe-tree colour theme: paper / classic / blueprint / blueprint_dark / ae2 / dark.",
@@ -152,5 +154,6 @@
   "message.jeirecipetree.restock.detail": "%s ×%s (need %s · network %s · inventory %s)",
   "message.jeirecipetree.restock.detail.nonet": "%s ×%s (need %s · inventory %s)",
   "message.jeirecipetree.restock.sep": ", ",
-  "message.jeirecipetree.restock.failed": "Restock failed: %s, stopped"
+  "message.jeirecipetree.restock.failed": "Restock failed: %s, stopped",
+  "message.jeirecipetree.perItem.progress": "Auto-crafting %s / %s"
 }

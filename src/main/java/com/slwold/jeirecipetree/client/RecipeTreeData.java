@@ -519,6 +519,13 @@ public final class RecipeTreeData {
             CostCalculator.Result vectorResult =
                 compareVectorPlan(totalCosts, Amounts.safeMultiply(IngredientDisplay.amountOf(rootStack), batches));
             Map<ItemRef, Long> vectorNet = vectorResult == null ? Map.of() : vectorResult.net();
+
+            Set<ItemRef> produced = new HashSet<>();
+            if (vectorResult != null) {
+                for (CostCalculator.Step step : vectorResult.steps()) {
+                    produced.add(step.target());
+                }
+            }
             java.util.Set<ItemRef> usedByVector = new java.util.HashSet<>();
             for (Map.Entry<String, MutableCost> entry : totalCosts.entrySet()) {
                 MutableCost total = entry.getValue();
@@ -537,11 +544,11 @@ public final class RecipeTreeData {
                 long wanted;
                 if (matched != null) {
                     usedByVector.add(matched);
-                    if (netAmount >= 0L) {
+                    if (netAmount >= 0L && !produced.contains(matched)) {
 
                         continue;
                     }
-                    required = -netAmount;
+                    required = Math.max(0L, -netAmount);
 
                     wanted = required;
                 } else {
@@ -555,28 +562,33 @@ public final class RecipeTreeData {
                     required, supplied, wanted));
             }
 
+            Map<String, Node> displayByKey = new HashMap<>();
+            collectNodesByKey(root, displayByKey);
             int hiddenRows = 0;
             ItemRef hiddenWorst = null;
             long hiddenWorstAmount = 0L;
             for (Map.Entry<ItemRef, Long> entry : vectorNet.entrySet()) {
-                if (entry.getValue() >= 0L || usedByVector.contains(entry.getKey())) {
+                if ((entry.getValue() >= 0L && !produced.contains(entry.getKey()))
+                    || usedByVector.contains(entry.getKey())) {
                     continue;
                 }
-                ItemStack display = IngredientDisplay
-                    .displayForKey(entry.getKey().key(), -entry.getValue())
+                long needed = Math.max(0L, -entry.getValue());
+                ItemStack display = treeDisplay(displayByKey, entry.getKey(), Math.max(1L, needed))
                     .orElse(ItemStack.EMPTY);
+                if (display.isEmpty()) {
+                    display = IngredientDisplay.displayForKey(entry.getKey().key(), Math.max(1L, needed))
+                        .orElse(ItemStack.EMPTY);
+                }
                 if (display.isEmpty()) {
 
                     hiddenRows++;
-                    long needed = -entry.getValue();
                     if (needed > hiddenWorstAmount) {
                         hiddenWorstAmount = needed;
                         hiddenWorst = entry.getKey();
                     }
                     continue;
                 }
-                long required = -entry.getValue();
-                costs.add(new Cost(display, List.of(display), required, 0L, required));
+                costs.add(new Cost(display, List.of(display), needed, 0L, needed));
             }
             if (hiddenRows > 0) {
 
@@ -779,10 +791,13 @@ public final class RecipeTreeData {
             for (RecipeRecord record : records) {
                 byId.putIfAbsent(record.id(), record);
             }
+
+            Map<String, Node> byKey = new HashMap<>();
+            collectNodesByKey(root, byKey);
             CraftStepOrder.Ordered ordered = CraftStepOrder.resolve(result.steps(), records);
             List<CraftStep> steps = new ArrayList<>();
             for (CostCalculator.Step step : ordered.steps()) {
-                CraftStep mapped = toCraftStep(step, byId.get(step.recipeId()));
+                CraftStep mapped = toCraftStep(step, byId.get(step.recipeId()), byKey);
                 if (mapped == null) {
 
                     return List.of();
@@ -794,7 +809,11 @@ public final class RecipeTreeData {
             return steps;
         }
 
-        private CraftStep toCraftStep(CostCalculator.Step step, RecipeRecord record) {
+        private CraftStep toCraftStep(
+            CostCalculator.Step step,
+            RecipeRecord record,
+            Map<String, Node> byKey
+        ) {
             if (record == null) {
                 unavailableStep(step.recipeId(), "no library record");
                 return null;
@@ -806,7 +825,10 @@ public final class RecipeTreeData {
             }
             RecipeRecord.Slot output = outputSlotOf(record, step.target());
             long needed = Math.max(1L, step.needed());
-            Optional<ItemStack> display = IngredientDisplay.displayForKey(step.target().key(), needed);
+            Optional<ItemStack> display = treeDisplay(byKey, step.target(), needed);
+            if (display.isEmpty()) {
+                display = IngredientDisplay.displayForKey(step.target().key(), needed);
+            }
             if (display.isEmpty()) {
 
                 unavailableStep(step.recipeId(), "no display stack for " + step.target().key());
@@ -832,6 +854,41 @@ public final class RecipeTreeData {
                 Progress.UNSTARTED,
                 List.of()
             );
+        }
+
+        private static void collectNodesByKey(Node node, Map<String, Node> out) {
+            if (node == null) {
+                return;
+            }
+            String key = node.ingredientKey;
+            if (key != null && !key.isBlank()) {
+                out.putIfAbsent(key, node);
+            }
+            for (Node child : node.children) {
+                collectNodesByKey(child, out);
+            }
+        }
+
+        private static Optional<ItemStack> treeDisplay(
+            Map<String, Node> byKey,
+            ItemRef target,
+            long amount
+        ) {
+            if (byKey == null || target == null) {
+                return Optional.empty();
+            }
+            Node node = byKey.get(target.key());
+            if (node == null) {
+                return Optional.empty();
+            }
+            ItemStack stack = node.stack();
+            if (stack.isEmpty()) {
+                return Optional.empty();
+            }
+            ItemStack copy = stack.copy();
+            copy.setCount(1);
+            IngredientDisplay.mark(copy, target.key(), amount);
+            return Optional.of(copy);
         }
 
         private RecipeRef liveRef(String id) {

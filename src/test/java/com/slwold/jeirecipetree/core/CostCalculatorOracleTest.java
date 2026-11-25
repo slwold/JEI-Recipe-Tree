@@ -182,8 +182,8 @@ public final class CostCalculatorOracleTest {
         stack.addLast(label);
         for (RecipeRecord.Slot input : recipe.inputs()) {
             long amount = input.amount() * times;
-            consumed.merge(input.primary(), amount, Long::sum);
-            descend(input.primary(), amount, pool, produced, consumed, crafts, source, stack);
+            consumed.merge(input.accountingKey(), amount, Long::sum);
+            descend(input.accountingKey(), amount, pool, produced, consumed, crafts, source, stack);
         }
         stack.removeLast();
         for (int index = 0; index < recipe.outputs().size(); index++) {
@@ -192,8 +192,8 @@ public final class CostCalculatorOracleTest {
             }
             RecipeRecord.Slot extra = recipe.outputs().get(index);
             long amount = extra.amount() * times;
-            produced.merge(extra.primary(), amount, Long::sum);
-            pool.merge(extra.primary(), amount, Long::sum);
+            produced.merge(extra.accountingKey(), amount, Long::sum);
+            pool.merge(extra.accountingKey(), amount, Long::sum);
         }
     }
 

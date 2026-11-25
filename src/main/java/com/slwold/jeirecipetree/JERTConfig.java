@@ -45,6 +45,13 @@ public final class JERTConfig {
                 "Allow Ctrl-left-click in the recipe-tree bookmarks to automatically craft missing intermediate steps.")
             .define("automaticCraftingEnabled", true);
 
+    public static final ModConfigSpec.BooleanValue PER_ITEM_CRAFTING =
+        BUILDER
+            .translation("jeirecipetree.configuration.perItemCrafting")
+            .comment("自动合成多个成品时逐个完成：一次只做到 1 个成品（含其所需中间物），做完再开始下一个。适合配方里有工具等不可堆叠中间物的情况；仅作用于原版工作台与玩家 2×2 合成格，AE2 与 RTS 终端始终一次做完。",
+                "Finish one crafted item at a time during automatic crafting: craft a single item (with its own intermediates) before starting the next. Useful when the recipe needs unstackable intermediates such as tools. Applies to the vanilla crafting table and the player 2x2 grid only; AE2 and RTS terminals always craft everything in one pass.")
+            .define("perItemCrafting", true);
+
     public static final ModConfigSpec.BooleanValue DEVELOPER_MODE =
         BUILDER
             .translation("jeirecipetree.configuration.developerMode")
@@ -101,6 +108,7 @@ public final class JERTConfig {
         "recipeTreeEnabled",
         "disabledRecipeTypes",
         "automaticCraftingEnabled",
+        "perItemCrafting",
         "developerMode",
         "sophisticatedRestockEnabled",
         "treeTheme",
@@ -129,6 +137,10 @@ public final class JERTConfig {
             "#允许在配方树书签上 Ctrl+左键，自动合成当前缺失的中间产物。\n"
                 + "#Allow Ctrl-left-click in the recipe-tree bookmarks to automatically craft missing intermediate steps.\n"
                 + "automaticCraftingEnabled = true"),
+        java.util.Map.entry("perItemCrafting",
+            "#自动合成多个成品时逐个完成：一次只做到 1 个成品（含其所需中间物），做完再开始下一个。适合配方里有工具等不可堆叠中间物的情况；仅作用于原版工作台与玩家 2×2 合成格，AE2 与 RTS 终端始终一次做完。\n"
+                + "#Finish one crafted item at a time during automatic crafting: craft a single item (with its own intermediates) before starting the next. Useful when the recipe needs unstackable intermediates such as tools. Applies to the vanilla crafting table and the player 2x2 grid only; AE2 and RTS terminals always craft everything in one pass.\n"
+                + "perItemCrafting = true"),
         java.util.Map.entry("developerMode",
             "#开发者模式：输出诊断日志（输入链路、面板区域、驱动状态）。\n"
                 + "#Developer mode: verbose diagnostic logging.\n"

@@ -73,10 +73,10 @@ public final class CostCalculator {
                     continue;
                 }
                 RecipeRecord.Slot extra = recipe.outputs().get(index);
-                vector.add(extra.primary(), Amounts.safeMultiply(extra.amount(), batches));
+                vector.add(extra.accountingKey(), Amounts.safeMultiply(extra.amount(), batches));
             }
             for (RecipeRecord.Slot input : recipe.inputs()) {
-                ItemRef ref = input.primary();
+                ItemRef ref = input.accountingKey();
                 long delta = -Amounts.safeMultiply(input.amount(), batches);
                 if (vector.addTracked(ref, delta, pending)) {
                     parentOf.putIfAbsent(ref, label);
@@ -84,7 +84,7 @@ public final class CostCalculator {
             }
 
             for (RecipeRecord.Slot catalyst : recipe.catalysts()) {
-                catalysts.merge(catalyst.primary(), catalyst.amount(), Math::max);
+                catalysts.merge(catalyst.accountingKey(), catalyst.amount(), Math::max);
             }
             steps.add(new Step(label, recipe.id(), batches, needed));
         }

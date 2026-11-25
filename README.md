@@ -119,6 +119,7 @@ NeoForge `ModConfigSpec` 的 11 项（`config/jeirecipetree-client.toml`，客�
 | `hideRecipeBookmarkButton`         | 隐藏 JEI 原生「加入书签」按钮（书签由树接管时用）                                                |
 | `disabledRecipeTypes`              | 禁用参与树的配方类型列表                                                               |
 | `automaticCraftingEnabled`         | Ctrl+左键递归合成                                                                |
+| `perItemCrafting`                  | 自动合成按成品逐个执行（避免工具类中间物塞满背包）                                              |
 | `developerMode`                    | 输出诊断日志（输入链路、面板区域、驱动状态）                                                     |
 | `sophisticatedRestockEnabled`      | 配方书的「取材料」按钮（需 Sophisticated Item Actions）                                  |
 | `treeTheme`                        | 配色主题：`paper` / `classic` / `blueprint` / `blueprint_dark` / `ae2` / `dark` |
@@ -309,6 +310,7 @@ cycle buttons); otherwise NeoForge's own screen is used:
 | `hideRecipeBookmarkButton` | hide JEI's native "add bookmark" button (when bookmarks are handled by the tree) |
 | `disabledRecipeTypes` | recipe types excluded from the tree |
 | `automaticCraftingEnabled` | Ctrl+click recursive crafting |
+| `perItemCrafting` | run auto crafting one output at a time (keeps tool-like intermediates from filling the inventory) |
 | `developerMode` | diagnostic logs (input chain, panel areas, driver state) |
 | `sophisticatedRestockEnabled` | the "fetch materials" button in the recipe book (needs Sophisticated Item Actions) |
 | `treeTheme` | colour theme: `paper` / `classic` / `blueprint` / `blueprint_dark` / `ae2` / `dark` |

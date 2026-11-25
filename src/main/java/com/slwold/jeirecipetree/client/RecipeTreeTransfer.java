@@ -64,6 +64,13 @@ public final class RecipeTreeTransfer {
     private static CraftQueue<RecipeTreeData.CraftStep> queue = CraftQueue.create();
     private static final TransferStepState step = new TransferStepState();
 
+    private static int perItemTotal;
+    private static int perItemDone;
+
+    private static List<RecipeTreeData.CraftStep> perItemPlan = List.of();
+
+    private static final int MAX_PER_ITEM_OUTPUTS = 4096;
+
     private static long sessionStartNanos;
 
     private static String lastFillState = "";
@@ -72,6 +79,7 @@ public final class RecipeTreeTransfer {
     }
 
     public static void cancel() {
+        clearPerItem();
         clearPending();
     }
 
@@ -136,6 +144,16 @@ public final class RecipeTreeTransfer {
         if (plan.isEmpty()) {
             return false;
         }
+        if (!exposeParentContainer()) {
+            clearPending("exposeParentContainer failed");
+            return false;
+        }
+
+        if (step.batches() > 1
+            && SafeConfig.perItemCraftingEnabled()
+            && perItemCrafting(containerScreen().getMenu())) {
+            return startPerItem(tree, step);
+        }
         queue = CraftQueue.of(plan, RecipeTreeData.CraftStep::batches);
         sessionStartNanos = System.nanoTime();
         lastFillState = "";
@@ -144,11 +162,111 @@ public final class RecipeTreeTransfer {
             step.total(),
             queue.size(),
             maxTransfer);
-        if (!exposeParentContainer()) {
-            clearPending("exposeParentContainer failed");
+        return startNextCraft();
+    }
+
+    private static boolean perItemCrafting(AbstractContainerMenu menu) {
+        if (menu == null) {
             return false;
         }
+        if (Ae2StorageIntegration.isCraftingMenu(menu)) {
+            return false;
+        }
+        if (RtsStorageDriver.isTerminalMenu(menu)) {
+            return false;
+        }
+        return menu instanceof CraftingMenu || menu instanceof InventoryMenu;
+    }
+
+    private static boolean startPerItem(RecipeTreeData.Tree tree, RecipeTreeData.CraftStep root) {
+        int total = (int) Math.min(root.batches(), MAX_PER_ITEM_OUTPUTS);
+        if (total <= 1) {
+            return false;
+        }
+        List<RecipeTreeData.CraftStep> firstPlan = tree.recursiveCraftingSteps(withSingleBatch(root));
+        if (firstPlan.isEmpty()) {
+            return stopPerItem("per-item plan empty");
+        }
+        perItemTotal = total;
+        perItemDone = 0;
+        perItemPlan = List.copyOf(firstPlan);
+        JERTLog.info("transfer start origin=tree_row target={} want={} items={} per_item=true",
+            RecipeTreeData.ingredientKey(root.stack()), root.total(), total);
+        return startNextItem();
+    }
+
+    private static boolean startNextItem() {
+        if (perItemPlan.isEmpty()) {
+            return stopPerItem("per-item plan empty");
+        }
+        queue = CraftQueue.of(perItemPlan, RecipeTreeData.CraftStep::batches);
+        sessionStartNanos = System.nanoTime();
+        lastFillState = "";
+        notifyPerItemProgress();
         return startNextCraft();
+    }
+
+    private static boolean continuePerItem() {
+        if (perItemTotal <= 0) {
+            return false;
+        }
+        perItemDone++;
+        if (perItemDone < perItemTotal) {
+            return startNextItem();
+        }
+        JERTLog.info("transfer items done {}/{}", perItemDone, perItemTotal);
+        clearPerItem();
+        return false;
+    }
+
+    private static void stopPerItemNow() {
+        if (perItemTotal > 0) {
+            JERTLog.info("transfer items stopped at {}/{}", perItemDone + 1, perItemTotal);
+        }
+        clearPerItem();
+    }
+
+    private static boolean stopPerItem(String reason) {
+        JERTLog.warn("transfer: per-item crafting stopped ({})", reason);
+        stopPerItemNow();
+        clearPending(reason);
+        return false;
+    }
+
+    private static void clearPerItem() {
+        perItemTotal = 0;
+        perItemDone = 0;
+        perItemPlan = List.of();
+    }
+
+    private static RecipeTreeData.CraftStep withSingleBatch(RecipeTreeData.CraftStep root) {
+        return new RecipeTreeData.CraftStep(
+            root.recipe(),
+            root.stack(),
+            root.alternatives(),
+            root.selectedInputs(),
+            1L,
+            1L,
+            1L,
+            root.progress(),
+            root.nodePaths()
+        );
+    }
+
+    private static void notifyPerItemProgress() {
+        if (perItemTotal <= 1) {
+            return;
+        }
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft == null || minecraft.player == null) {
+            return;
+        }
+        try {
+            minecraft.player.displayClientMessage(Component.translatable(
+                "message.jeirecipetree.perItem.progress", perItemDone + 1, perItemTotal), true);
+        } catch (RuntimeException ignored) {
+
+        }
     }
 
     public static void tick(Screen currentScreen) {
@@ -836,6 +954,10 @@ public final class RecipeTreeTransfer {
 
     private static boolean startNextCraft() {
         if (!queue.hasCurrent()) {
+
+            if (continuePerItem()) {
+                return true;
+            }
             clearPending("queue complete");
             RecipeTreeFavorites.refreshNow();
             return true;
@@ -1750,6 +1872,8 @@ public final class RecipeTreeTransfer {
     }
 
     private static void clearPending(String reason) {
+
+        stopPerItemNow();
         String code = reasonCode(reason);
         if ("ok".equals(code)) {
             JERTLog.info("transfer end completed={} total={} failed=0 result=ok took={}s",

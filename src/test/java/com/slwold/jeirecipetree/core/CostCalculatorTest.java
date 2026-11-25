@@ -19,8 +19,10 @@ public final class CostCalculatorTest {
         byproductsCount();
         catalystsAreIgnored();
         catalystsMergeByMax();
+        tagFirstInputExpandsConcreteIntermediate();
         System.out.println("CostCalculator checks passed: hand-calc, stock offset, order independence, "
-            + "aggregate batching, remainder/redeploy, cycle, truncation, byproducts, catalysts, catalyst max-merge");
+            + "aggregate batching, remainder/redeploy, cycle, truncation, byproducts, catalysts, catalyst max-merge, "
+            + "tag-first accounting");
     }
 
     private static void handCalculationMatches() {
@@ -198,6 +200,23 @@ public final class CostCalculatorTest {
             CostCalculator.DEFAULT_MAX_STEPS);
 
         assertAmount(result.catalysts(), "anvil", 2, "同一催化剂跨步取最大值，不累加");
+    }
+
+    private static void tagFirstInputExpandsConcreteIntermediate() {
+        CostVector vector = CostVector.empty();
+        vector.require(ref("netherite_furnace"), 1);
+
+        CostCalculator.Result result = CostCalculator.expand(vector, source(
+            recipe("netherite_furnace", slots(slot(1, "netherite_furnace")),
+                slots(slot(1, "tag:c:furnaces/obsidian", "obsidian_furnace"))),
+            recipe("obsidian_furnace", slots(slot(1, "obsidian_furnace")), slots(slot(4, "obsidian")))
+        ), CostCalculator.DEFAULT_MAX_STEPS);
+
+        assertEquals(2, result.steps().size(), "tag 首候选的中间品也必须展开");
+        assertTrue(countSteps(result, "obsidian_furnace") == 1, "中间品步骤应存在");
+        assertAmount(result.net(), "obsidian_furnace", 0, "中间品应被展开抵消");
+        assertAmount(result.net(), "obsidian", -4, "原料缺口应落到具体物品键");
+        assertAmount(result.net(), "tag:c:furnaces/obsidian", 0, "不应再按 tag 键记账");
     }
 
     private static ItemRef ref(String key) {

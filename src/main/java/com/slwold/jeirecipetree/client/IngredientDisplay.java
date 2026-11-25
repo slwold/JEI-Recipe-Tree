@@ -221,7 +221,7 @@ final class IngredientDisplay {
         if (stack == null || stack.isEmpty()) {
             return false;
         }
-        if (FluidRecipeCompat.treeFluid(stack).isPresent() || markedAmount(stack) > 0L) {
+        if (FluidRecipeCompat.treeFluid(stack).isPresent()) {
             return true;
         }
 
@@ -305,12 +305,45 @@ final class IngredientDisplay {
     static Optional<ItemStack> displayForKey(String key, long amount) {
         ITypedIngredient<?> source = sourceFor(key);
         if (source == null) {
+            source = itemSourceFor(key);
+        }
+        if (source == null) {
             return Optional.empty();
         }
         return display(source).map(stack -> {
             mark(stack, canonicalKey(key), Math.max(1L, amount));
             return stack;
         });
+    }
+
+    private static ITypedIngredient<?> itemSourceFor(String key) {
+        if (key == null || key.isBlank() || key.startsWith(CHEMICAL_PREFIX)) {
+            return null;
+        }
+        IIngredientManager ingredientManager = manager();
+        if (ingredientManager == null) {
+            return null;
+        }
+        net.minecraft.resources.ResourceLocation id = net.minecraft.resources.ResourceLocation.tryParse(key);
+        if (id == null) {
+            return null;
+        }
+        Item item = net.minecraft.core.registries.BuiltInRegistries.ITEM.get(id);
+        if (item == null || item == net.minecraft.world.item.Items.AIR) {
+            return null;
+        }
+        ITypedIngredient<?> source = ingredientManager
+            .createTypedIngredient(VanillaTypes.ITEM_STACK, new ItemStack(item))
+            .orElse(null);
+        if (source == null) {
+            return null;
+        }
+        SOURCES.putIfAbsent(key, source);
+        String canonical = canonicalKey(key);
+        if (canonical != null && !canonical.isBlank()) {
+            SOURCES.putIfAbsent(canonical, source);
+        }
+        return source;
     }
 
     @SuppressWarnings({"rawtypes", "unchecked"})
@@ -698,7 +731,10 @@ final class IngredientDisplay {
             return;
         }
         CompoundTag tag = data.copyTag();
-        if (amount > 0L) {
+
+        ItemRef ref = ItemRef.of(key);
+        boolean measured = ref.isFluid() || ref.isChemical();
+        if (measured && amount > 0L) {
             tag.putLong(AMOUNT_TAG, amount);
         } else {
             tag.remove(AMOUNT_TAG);

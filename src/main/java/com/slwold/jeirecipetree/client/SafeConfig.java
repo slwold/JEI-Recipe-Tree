@@ -50,6 +50,10 @@ public final class SafeConfig {
         return getBoolean(JERTConfig.AUTOMATIC_CRAFTING_ENABLED, true);
     }
 
+    public static boolean perItemCraftingEnabled() {
+        return getBoolean(JERTConfig.PER_ITEM_CRAFTING, true);
+    }
+
     public static boolean developerMode() {
         return getBoolean(JERTConfig.DEVELOPER_MODE, false);
     }

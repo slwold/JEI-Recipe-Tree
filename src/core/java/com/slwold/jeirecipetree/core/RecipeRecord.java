@@ -55,5 +55,14 @@ public record RecipeRecord(
         public ItemRef primary() {
             return alternatives.get(0);
         }
+
+        public ItemRef accountingKey() {
+            for (ItemRef alternative : alternatives) {
+                if (!alternative.isTag()) {
+                    return alternative;
+                }
+            }
+            return alternatives.get(0);
+        }
     }
 }
