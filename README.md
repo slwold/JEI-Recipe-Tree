@@ -2,19 +2,19 @@
 
 在 JEI 里点一下按钮，把这张配方摊开成一棵树——要做什么、缺什么、还差几个，一眼看清。
 
-Minecraft **1.21.1 / NeoForge** 的 JEI 客户端附属：把配方展开成可交互的**多层配方树**，
-给出总耗材、余料、制作步骤与背包进度。主要给专家整合包的前期用——还没有 AE 自动合成、
+Minecraft **1.21.1 / NeoForge** 的 JEI 客户端附属：把配方展开成可交互的**多层配方树**，  
+给出总耗材、余料、制作步骤与背包进度。主要给专家整合包的前期用——还没有 AE 自动合成、  
 什么都得手搓的那段。
 
 ## 特性
 
 - **一键展开多层树**：从配方页或侧栏展开后自动向下递归，不用一层层点；每个节点能换子配方、换替代材料。
 - **算账**：总耗材、中间产物、催化剂（不消耗）、余料分开列；流体与化学品同样进树。
-- **配方库**：配方由玩家自己导入（JEI 配方页导入后就地编辑），按组管理、可整包导出；
+- **配方库**：配方由玩家自己导入（JEI 配方页导入后就地编辑），按组管理、可整包导出；  
   树跟随库里的配方展开，不做整合包自动索引。
-- **库存对照**：开制作模式时材料按"够 / 缺"标状态；装了 AE2 或 RS 直接读网络存量，
+- **库存对照**：开制作模式时材料按"够 / 缺"标状态；装了 AE2 或 RS 直接读网络存量，  
   没装就只认背包与面前的容器。
-- **取材料**：装了 Sophisticated Item Actions 时，配方书里多一个「取材料」，按配方把缺的
+- **取材料**：装了 Sophisticated Item Actions 时，配方书里多一个「取材料」，按配方把缺的  
   从附近容器搬进背包（距离与领地权限由服务端二次校验）。
 - **六套配色**：树界面里点按钮即换，也可在配置里选。
 
@@ -26,14 +26,58 @@ Minecraft **1.21.1 / NeoForge** 的 JEI 客户端附属：把配方展开成可�
 2. 点配方页上的树形按钮，配方展开成树，自动向下递归。
 3. 点树里的原料节点，换一条子配方，或换一种可用材料。
 4. 点树界面的制作模式按钮，背包和附近箱子按够 / 缺着色。
-5. 书签上 Ctrl+左键，按依赖顺序把料填进各机器的合成格；F8 打开配方库。
+5. 书签上 Ctrl+左键，按依赖顺序把料填进合成格；F8 打开配方库。
+
+## 功能一览
+
+**树与计算**
+
+- 一键展开：JEI 配方页或侧栏按钮展开多层树，自动向下递归。
+- 树视图：拖动、缩放；树结构常驻，行不随库存变化消失，只更新数字。
+- 成本核算：总耗材、中间产物、催化剂（不消耗）、余料分列；同一材料的多处需求合并成一行；按每批产出向上取整。
+- 节点编辑：换子配方、换替代材料；多候选槽位可开配方目录挑选。
+- 缺口提示：成本行与 tooltip 走 JEI 富渲染，标注可用 / 缺失数量。
+- 流体与化学品：同等进树，显示本体图标与 mB 数量。
+- 序列装配（Sequenced Assembly）配方适配。
+
+**配方库与编辑器（F8）**
+
+- 导入：JEI 配方页一键导入，就地进入编辑器。
+- 编辑器：输出 / 催化剂 / 输入三组槽；左键拿起换位置、从 JEI 拖图标进槽、数字键直接填数量、支持占位符材料。
+- 分组管理：每组一个 JSON 文件，可改名、删除、整包导出。
+- 手动建树：不经过配方页，直接按库内配方建树。
+- 坏库守卫：JSON 写坏时拒绝覆盖，自动留 `.bak`。
+
+**自动合成（Ctrl+左键书签）**
+
+- 按依赖顺序逐台机器填格，先中间品后成品。
+- 填充前自动补料：材料在背包、容器或网络里都能取。
+- 大批量自动按背包容量分批。
+- 网络回存失败时产物兜底进背包；每次转移前自动清光标。
+- AE2：产物优先回 ME 网络；RTS 合成终端：只读链接存储，适配其自动补格行为。
+
+**库存与网络**
+
+- 制作模式：背包与附近容器按够 / 缺着色；合成格计入供应。
+- AE2 / Refined Storage / Integrated Terminals：打开终端直接读网络存量。
+- Sophisticated Item Actions：配方书「取材料」一键取缺料（距离与领地权限由服务端二次校验）。
+- Sophisticated Storage：识别精妙合成升级的结果槽。
+
+**界面**
+
+- JEI 侧栏树行：书签列表内直接显示树行与进度。
+- JEI 配方页滚轮翻页。
+- 会话恢复：跨维度、重启后恢复树与状态。
+- 六套配色 × 四档字号，树界面内即时切换。
+- 配置界面：装了 MezzConfigGui 由它渲染，否则 NeoForge 自带。
+- 可配置：隐藏 JEI 原生书签按钮、禁用指定配方类型、开发者模式（诊断日志 + F9 诊断界面）。
 
 ## 运行要求
 
 - Minecraft 1.21.1，NeoForge ≥ 21.1.80
 - JEI ≥ 19.27.0（编译基线 19.54.0.429；实机验证 19.64.0.455 与 19.69.0.456）
 - 客户端模组，服务端不用装。
-- 可选：MezzConfigGui（配置界面）、Sophisticated Item Actions（取材料）、
+- 可选：MezzConfigGui（配置界面）、Sophisticated Item Actions（取材料）、  
   AE2 / Refined Storage / Integrated Terminals / Sophisticated Storage（库存来源）
 
 ## 构建
@@ -42,50 +86,51 @@ Minecraft **1.21.1 / NeoForge** 的 JEI 客户端附属：把配方展开成可�
 .\gradlew.bat build --offline      # 产物 build/libs/jeirecipetree-1.21.1-<版本>.jar
 ```
 
-**本地依赖（不进版本库）**：AE2 兼容层需要 AE2 的 API jar 才能编译，请自行放入
-`libs/appliedenergistics2-19.2.18.jar`（对应 AE2 19.2.18，NeoForge 版）。`libs/` 已被
-`.gitignore` 忽略——它是第三方二进制；没有它时 `compileOnly files('libs/…')` 会解析失败，
+**本地依赖（不进版本库）**：AE2 兼容层需要 AE2 的 API jar 才能编译，请自行放入  
+`libs/appliedenergistics2-19.2.18.jar`（对应 AE2 19.2.18，NeoForge 版）。`libs/` 已被  
+`.gitignore` 忽略——它是第三方二进制；没有它时 `compileOnly files('libs/…')` 会解析失败，  
 `compat/ae2` 下相关类无法编译。
 
 `build` 连带跑 **17 个 headless 测试 + 22 项构建期机检**，其中有代表性的：
 
-| 任务 | 内容 |
-| --- | --- |
-| `testRecipeTreeMaterials` / `testCostCalculator` | 材料模型与成本向量（正负合并、真实副产物、顺序） |
-| `testCoreItemRef` / `testCoreAmounts` / `testItemRefKeyParity` | `core` 层纯逻辑：身份键、饱和算术、键迁移对拍 |
-| `testCraftQueue` / `testTransferPhase` | 递归队列与转移阶段，与迁移前算法逐轮对拍 |
-| `testConfigBlocks` | 配置写盘契约：拼出的 TOML 必须被 spec 判为"正确"（注释差一行就会触发整文件重写） |
-| `testComplexityBudget` | 复杂度预算（CC/LOC），防止单类膨胀 |
-| `verifyJeiCompatibility` / `verifyMinecraftMixinTargets` / `verifyOwnMixins` | mixin 目标类与注入点在 JEI jar 中真实存在 |
-| `verifyCoreIsolation` | `core` 层零 MC / JEI 引用 |
-| `verifyUiLayers` / `verifyRenderLayers` / `verifyViewportFit` | 渲染层级、UI 分层与视口适配不许回潮 |
-| `verifyIdentityLayer` / `verifyStorageDrivers` / `verifyDocCounts` | 身份键进主流程、存储走驱动聚合、文档类数不许漂 |
+| 任务                                                                           | 内容                                              |
+| ---------------------------------------------------------------------------- | ----------------------------------------------- |
+| `testRecipeTreeMaterials` / `testCostCalculator`                             | 材料模型与成本向量（正负合并、真实副产物、顺序）                        |
+| `testCoreItemRef` / `testCoreAmounts` / `testItemRefKeyParity`               | `core` 层纯逻辑：身份键、饱和算术、键迁移对拍                      |
+| `testCraftQueue` / `testTransferPhase`                                       | 递归队列与转移阶段，与迁移前算法逐轮对拍                            |
+| `testConfigBlocks`                                                           | 配置写盘契约：拼出的 TOML 必须被 spec 判为"正确"（注释差一行就会触发整文件重写） |
+| `testComplexityBudget`                                                       | 复杂度预算（CC/LOC），防止单类膨胀                            |
+| `verifyJeiCompatibility` / `verifyMinecraftMixinTargets` / `verifyOwnMixins` | mixin 目标类与注入点在 JEI jar 中真实存在                    |
+| `verifyCoreIsolation`                                                        | `core` 层零 MC / JEI 引用                           |
+| `verifyUiLayers` / `verifyRenderLayers` / `verifyViewportFit`                | 渲染层级、UI 分层与视口适配不许回潮                             |
+| `verifyIdentityLayer` / `verifyStorageDrivers` / `verifyDocCounts`           | 身份键进主流程、存储走驱动聚合、文档类数不许漂                         |
 
 工具链：Gradle 8.9（wrapper）+ ModDevGradle + NeoForge 21.1.80 + JEI 19.54.0.429，离线可构建。
 
 ## 配置
 
-NeoForge `ModConfigSpec` 的 9 项（`config/jeirecipetree-client.toml`，客户端）。装了
+NeoForge `ModConfigSpec` 的 11 项（`config/jeirecipetree-client.toml`，客户端）。装了  
 **MezzConfig GUI** 时由它渲染（枚举是选择器而不是循环按钮），没装则退回 NeoForge 自带界面：
 
-| 键 | 作用 |
-| --- | --- |
-| `recipeTreeEnabled` | 配方树总开关 |
-| `recipeIngredientDirectoryEnabled` | 多候选槽位的配方目录 |
-| `hideRecipeBookmarkButton` | 隐藏 JEI 原生「加入书签」按钮（书签由树接管时用） |
-| `disabledRecipeTypes` | 禁用参与树的配方类型列表 |
-| `automaticCraftingEnabled` | Ctrl+左键递归合成 |
-| `developerMode` | 输出诊断日志（输入链路、面板区域、驱动状态） |
-| `sophisticatedRestockEnabled` | 配方书的「取材料」按钮（需 Sophisticated Item Actions） |
-| `treeTheme` | 配色主题：`paper` / `classic` / `blueprint` / `blueprint_dark` / `ae2` / `dark` |
-| `treeTextSize` | 界面文字大小：`small` / `normal` / `large` / `huge` |
+| 键                                  | 作用                                                                         |
+| ---------------------------------- | -------------------------------------------------------------------------- |
+| `recipeTreeEnabled`                | 配方树总开关                                                                     |
+| `recipeIngredientDirectoryEnabled` | 多候选槽位的配方目录                                                                 |
+| `hideRecipeBookmarkButton`         | 隐藏 JEI 原生「加入书签」按钮（书签由树接管时用）                                                |
+| `disabledRecipeTypes`              | 禁用参与树的配方类型列表                                                               |
+| `automaticCraftingEnabled`         | Ctrl+左键递归合成                                                                |
+| `developerMode`                    | 输出诊断日志（输入链路、面板区域、驱动状态）                                                     |
+| `sophisticatedRestockEnabled`      | 配方书的「取材料」按钮（需 Sophisticated Item Actions）                                  |
+| `treeTheme`                        | 配色主题：`paper` / `classic` / `blueprint` / `blueprint_dark` / `ae2` / `dark` |
+| `treeTextSize`                     | 界面文字大小：`small` / `normal` / `large` / `huge`                               |
+| `useGameFontForNumbers`             | 数量文字改用游戏自带字体显示（默认使用模组字体）                                          |
 
-数据文件在 `config/ject/`：
+数据文件在 `config/jeirecipetree/`：
 
-| 文件 | 作用 |
-| --- | --- |
-| `recipe_defaults.json` | 按输出保存的默认配方（每个 `*.json` 是一个分组） |
-| `recipe_tree_session.json` | 跨换档 / 重启恢复的会话状态 |
+| 文件                         | 作用                            |
+| -------------------------- | ----------------------------- |
+| `recipes/default.json`         | 按输出保存的默认配方；每个文件是一个分组，新建组另存为 `<组名>.json`       |
+| `recipe_tree_session.json` | 跨换档 / 重启恢复的会话状态               |
 
 ## 目录
 
@@ -127,28 +172,28 @@ MIT，见 `LICENSE`；第三方依赖与参考声明见 `THIRD_PARTY_NOTICES.md`
 
 # JEI Recipe Tree (English)
 
-One click in JEI unfolds the recipe into a tree — what you are making, what it needs, and how
+One click in JEI unfolds the recipe into a tree — what you are making, what it needs, and how  
 many you are short, all at a glance.
 
-A client-side JEI add-on for Minecraft **1.21.1 / NeoForge**: recipes are laid out as an
-interactive **multi-layer tree** with total costs, leftovers, craft steps and inventory progress.
-It is aimed at the early stage of expert packs, before AE autocrafting is up and everything is
+A client-side JEI add-on for Minecraft **1.21.1 / NeoForge**: recipes are laid out as an  
+interactive **multi-layer tree** with total costs, leftovers, craft steps and inventory progress.  
+It is aimed at the early stage of expert packs, before AE autocrafting is up and everything is  
 still crafted by hand.
 
 ## Features
 
-- **One-click multi-layer tree**: expanding from a recipe page or the sidebar recurses downward
+- **One-click multi-layer tree**: expanding from a recipe page or the sidebar recurses downward  
   on its own; every node can swap its sub-recipe or pick a different valid ingredient.
-- **The math**: total costs, intermediates, catalysts (not consumed) and leftovers are listed
+- **The math**: total costs, intermediates, catalysts (not consumed) and leftovers are listed  
   separately; fluids and chemicals take part in the tree as well.
-- **Recipe library**: recipes are imported by the player (imported from a JEI recipe page and
-  edited in place), managed in groups and exportable as a file. The tree follows the library —
+- **Recipe library**: recipes are imported by the player (imported from a JEI recipe page and  
+  edited in place), managed in groups and exportable as a file. The tree follows the library —  
   there is no modpack-wide automatic indexing.
-- **Inventory comparison**: with crafting mode on, materials are tinted by "enough / short".
-  With AE2 or Refined Storage installed, stock is read straight from the network; without them,
+- **Inventory comparison**: with crafting mode on, materials are tinted by "enough / short".  
+  With AE2 or Refined Storage installed, stock is read straight from the network; without them,  
   only the inventory and the container in front of you are counted.
-- **Fetch materials**: with Sophisticated Item Actions installed, the recipe book gains a
-  "fetch materials" action that pulls the missing items from nearby containers into the inventory
+- **Fetch materials**: with Sophisticated Item Actions installed, the recipe book gains a  
+  "fetch materials" action that pulls the missing items from nearby containers into the inventory  
   (distance and claim permissions are re-checked server side).
 - **Six colour themes**: switched from a button in the tree screen, or from the config.
 
@@ -161,6 +206,60 @@ It does the math: it will not run your machines, and it will not push crafting j
 3. Click an ingredient node to substitute another sub-recipe, or to pick a different valid ingredient.
 4. Click the crafting mode button in the tree screen to tint items by "enough / short".
 5. Ctrl+click a bookmark to fill the crafting grids in dependency order; F8 opens the recipe library.
+
+## Full feature list
+
+**Tree & math**
+
+- One-click unfold: the tree button on the JEI recipe page or the sidebar unfolds a multi-layer  
+  tree that recurses downward on its own.
+- Tree view: pan and zoom; the tree persists, rows do not vanish with stock changes — only the numbers update.
+- Accounting: total costs, intermediates, catalysts (not consumed) and leftovers are listed  
+  separately; demands for the same item merge into one row; rounding goes up per batch output.
+- Node editing: swap sub-recipes or alternative ingredients; multi-candidate slots can open a  
+  recipe directory to pick from.
+- Shortage hints: cost rows and tooltips use JEI rich rendering, annotated with available / missing counts.
+- Fluids & chemicals take part in the tree like items, drawn with their own icons and mB amounts.
+- Sequenced Assembly recipe support.
+
+**Library & editor (F8)**
+
+- Import: one click from a JEI recipe page, straight into the editor.
+- Editor: output / catalyst / input slots; left-click to pick up and swap, drag icons from JEI,  
+  number keys set amounts, placeholder ingredients supported.
+- Groups: one JSON file per group; rename, delete, and full export.
+- Manual trees: build a tree from a library recipe without going through a recipe page.
+- Broken-library guard: a corrupted JSON is never overwritten; a `.bak` is kept instead.
+
+**Auto crafting (Ctrl+click a bookmark)**
+
+- Fills machines one by one in dependency order, intermediates first.
+- Restocks before filling: materials are pulled from the inventory, nearby containers or the network.
+- Large batches are split by inventory capacity automatically.
+- If the network refuses a deposit, outputs fall back to the inventory; the cursor is cleared  
+  before every transfer.
+- AE2: outputs return to the ME network first; RTS crafting terminal: linked storage is read-only,  
+  adapted to its auto-refill behaviour.
+
+**Inventory & network**
+
+- Crafting mode: tints inventory and nearby containers by enough / short; crafting-grid contents  
+  count toward supply.
+- AE2 / Refined Storage / Integrated Terminals: network stock is read while a terminal is open.
+- Sophisticated Item Actions: a "fetch materials" action in the recipe book pulls missing items  
+  from nearby containers (distance and claim permissions re-checked server side).
+- Sophisticated Storage: the result slot of the Sophisticated crafting upgrade is recognised.
+
+**UI**
+
+- Sidebar tree rows: progress and rows rendered inside JEI's bookmark list.
+- Scroll-wheel paging on JEI recipe pages.
+- Session restore: trees and state survive dimension changes and restarts.
+- Six colour themes × four text sizes, switched inside the tree screen.
+- Config screen: rendered by MezzConfigGui when installed, otherwise NeoForge's own.
+- Configurable: hide JEI's native bookmark button, exclude recipe types, developer mode  
+  (diagnostic logs + F9 diagnostics).
+
 
 ## Requirements
 
@@ -199,7 +298,7 @@ Toolchain: Gradle 8.9 (wrapper) + ModDevGradle + NeoForge 21.1.80 + JEI 19.54.0.
 
 ## Configuration
 
-Nine options on NeoForge `ModConfigSpec` (`config/jeirecipetree-client.toml`, client side).
+Eleven options on NeoForge `ModConfigSpec` (`config/jeirecipetree-client.toml`, client side).
 With **MezzConfig GUI** installed it renders the screen (enums become selectors instead of
 cycle buttons); otherwise NeoForge's own screen is used:
 
@@ -214,12 +313,13 @@ cycle buttons); otherwise NeoForge's own screen is used:
 | `sophisticatedRestockEnabled` | the "fetch materials" button in the recipe book (needs Sophisticated Item Actions) |
 | `treeTheme` | colour theme: `paper` / `classic` / `blueprint` / `blueprint_dark` / `ae2` / `dark` |
 | `treeTextSize` | UI text size: `small` / `normal` / `large` / `huge` |
+| `useGameFontForNumbers` | draw amounts with the game's own font (off by default, the mod font is used) |
 
-Data files live in `config/ject/`:
+Data files live in `config/jeirecipetree/`:
 
 | File | Purpose |
 | --- | --- |
-| `recipe_defaults.json` | default recipes saved per output (each `*.json` is one group) |
+| `recipes/default.json` | default recipes saved per output; one file per group, new groups are saved as `<group>.json` |
 | `recipe_tree_session.json` | session state restored across dimension changes and restarts |
 
 ## Layout

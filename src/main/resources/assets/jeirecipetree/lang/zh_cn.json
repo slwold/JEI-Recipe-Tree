@@ -146,5 +146,11 @@
   "jeirecipetree.configuration.treeTheme.tooltip": "配方树配色主题：paper（米白纸）/ classic（纸面蓝图）/ blueprint（IE 浅蓝蓝图）/ blueprint_dark（IE 深蓝蓝图）/ ae2（AE2 终端灰）/ dark（深色终端）。",
   "jeirecipetree.configuration.treeTextSize.tooltip": "配方树界面的文字大小：small（0.5 倍）/ normal（标准）/ large（2 倍）/ huge（3 倍）。只用整数倍，分数倍会把位图字体采样发虚。",
   "jeirecipetree.configuration.useGameFontForNumbers": "数量角标使用游戏字体（跟随字体资源包）",
-  "jeirecipetree.configuration.useGameFontForNumbers.tooltip": "数量角标使用游戏当前字体（跟随字体资源包）；关闭时数字强制用原版位图字体。"
+  "jeirecipetree.configuration.useGameFontForNumbers.tooltip": "数量角标使用游戏当前字体（跟随字体资源包）；关闭时数字强制用原版位图字体。",
+  "message.jeirecipetree.restock.short": "材料不足，已停止：缺 %s",
+  "message.jeirecipetree.restock.short.more": "材料不足，已停止：%s 等 %s 项",
+  "message.jeirecipetree.restock.detail": "%s ×%s（需要 %s · 网络 %s · 背包 %s）",
+  "message.jeirecipetree.restock.detail.nonet": "%s ×%s（需要 %s · 背包 %s）",
+  "message.jeirecipetree.restock.sep": "、",
+  "message.jeirecipetree.restock.failed": "补料失败：%s，已停止"
 }

@@ -146,5 +146,11 @@
   "jeirecipetree.configuration.treeTheme.tooltip": "Recipe-tree colour theme: paper / classic / blueprint / blueprint_dark / ae2 / dark.",
   "jeirecipetree.configuration.treeTextSize.tooltip": "Recipe-tree text size: small (0.5x) / normal / large (2x) / huge (3x). Integer multiples only; fractional factors resample the bitmap font and look blurry.",
   "jeirecipetree.configuration.useGameFontForNumbers": "Use the game font for quantity badges (follows font packs)",
-  "jeirecipetree.configuration.useGameFontForNumbers.tooltip": "Use the current game font for quantity badges (follows font resource packs); when off, numbers always use the vanilla bitmap font."
+  "jeirecipetree.configuration.useGameFontForNumbers.tooltip": "Use the current game font for quantity badges (follows font resource packs); when off, numbers always use the vanilla bitmap font.",
+  "message.jeirecipetree.restock.short": "Not enough materials, stopped: missing %s",
+  "message.jeirecipetree.restock.short.more": "Not enough materials, stopped: %s and %s more",
+  "message.jeirecipetree.restock.detail": "%s ×%s (need %s · network %s · inventory %s)",
+  "message.jeirecipetree.restock.detail.nonet": "%s ×%s (need %s · inventory %s)",
+  "message.jeirecipetree.restock.sep": ", ",
+  "message.jeirecipetree.restock.failed": "Restock failed: %s, stopped"
 }

@@ -66,15 +66,15 @@ tasks.register('verifyLibrarySource') {
             'ghost drag must be registered on the edit screen so items can be dragged into slots'
         def editPanel = read('RecipeEditPanel.java')
         assert editPanel.contains('grabFromPicker()') :
-            'the 标签 button must be able to grab an identity into the hand (JEC GuiLabel path)'
+            'the 标签 button must be able to grab an identity into the hand (reference implementation path)'
         assert editPanel.contains('private void putHand(int ordinal, int index)') :
-            'an empty cell must accept the hand (JEC WLabel place): a grid the player cannot fill is a dead end'
+            'an empty cell must accept the hand (reference implementation): a grid the player cannot fill is a dead end'
         assert !editPanel.contains('openPickerForAdd') :
-            'empty-cell click must not open the picker any more (JEC: empty slot has no branch)'
+            'empty-cell click must not open the picker any more (an empty slot has no branch)'
         assert editPanel.contains('if (button != 0)') :
-            'right click on a slot must do nothing (JEC WLabel returns false for button 1)'
+            'right click on a slot must do nothing (the reference implementation returns false for button 1)'
         assert editPanel.contains('private void clearHand()') :
-            'clicking blank space and pressing Esc must discard the hand (JecaGui semantics)'
+            'clicking blank space and pressing Esc must discard the hand (reference implementation semantics)'
         assert editPanel.contains('picker.open(') :
             'clicking a slot must open the candidate picker: cycling candidates is not choosing'
         assert !editPanel.contains('rotateAlternative') :

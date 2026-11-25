@@ -117,16 +117,13 @@ public final class MaterialFetch {
                 continue;
             }
 
-            long required = cost.wanted();
-            if (required <= 0) {
+            long missing = cost.required();
+            if (missing <= 0) {
                 continue;
             }
             List<ItemStack> alternatives = cost.alternatives() == null ? List.of() : cost.alternatives();
             long owned = SupplyLedger.inventoryAmount(alternatives, playerAmounts);
-            if (owned >= required) {
-
-                continue;
-            }
+            long required = missing + owned;
             int maxStack = Math.max(1, primary.getMaxStackSize());
             long target = Math.min(required, (long) MAX_TARGET_STACKS * maxStack);
             int count = (int) Math.min(target, Integer.MAX_VALUE);

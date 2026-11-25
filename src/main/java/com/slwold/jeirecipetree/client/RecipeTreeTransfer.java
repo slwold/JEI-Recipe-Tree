@@ -21,6 +21,8 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.CartographyTableMenu;
@@ -49,6 +51,8 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 
 public final class RecipeTreeTransfer {
+
+    private static final int MAX_RESTOCK_GROUP = 16;
     private static final int AE2_WAIT_FRAMES = 600;
 
     private static final int AE2_DEPOSIT_WAIT_FRAMES = 40;
@@ -285,11 +289,63 @@ public final class RecipeTreeTransfer {
             return;
         }
         step.restockPending = false;
-        if (!Boolean.TRUE.equals(done)) {
-            JERTLog.debug("transfer: restock failed, falling back to plain transfer | {}",
-                StorageRestock.lastFailure());
+        if (Boolean.TRUE.equals(done)) {
+            resumeAfterRestock();
+            return;
         }
-        resumeAfterRestock();
+
+        JERTLog.warn("transfer: restock incomplete, stopping before transfer | short={} reason={}",
+            StorageRestock.shortfall().size(), StorageRestock.lastFailure());
+        notifyRestockShort(minecraft);
+        clearPending("restock short");
+    }
+
+    private static void notifyRestockShort(Minecraft minecraft) {
+        if (minecraft == null || minecraft.player == null) {
+            return;
+        }
+        List<StorageRestock.Short> shortfall = StorageRestock.shortfall();
+        Component message;
+        if (shortfall.isEmpty()) {
+            message = Component.translatable("message.jeirecipetree.restock.failed",
+                StorageRestock.lastFailure());
+        } else {
+            message = shortfallMessage(shortfall);
+        }
+        try {
+            minecraft.player.displayClientMessage(message, true);
+        } catch (RuntimeException ignored) {
+
+        }
+    }
+
+    private static Component shortfallMessage(List<StorageRestock.Short> shortfall) {
+        int shown = Math.min(2, shortfall.size());
+        MutableComponent items = Component.empty();
+        for (int i = 0; i < shown; i++) {
+            if (i > 0) {
+                items.append(Component.translatable("message.jeirecipetree.restock.sep"));
+            }
+            items.append(shortfallDetail(shortfall.get(i)));
+        }
+        return shortfall.size() > shown
+            ? Component.translatable(
+                "message.jeirecipetree.restock.short.more", items, shortfall.size())
+            : Component.translatable("message.jeirecipetree.restock.short", items);
+    }
+
+    private static Component shortfallDetail(StorageRestock.Short entry) {
+        Component name = entry.stack() == null || entry.stack().isEmpty()
+            ? Component.literal(entry.key())
+            : entry.stack().getHoverName();
+
+        return entry.network() < 0
+            ? Component.translatable(
+                "message.jeirecipetree.restock.detail.nonet",
+                name, entry.missing(), entry.need(), entry.inventory())
+            : Component.translatable(
+                "message.jeirecipetree.restock.detail",
+                name, entry.missing(), entry.need(), entry.network(), entry.inventory());
     }
 
     private static void resumeAfterRestock() {
@@ -1201,6 +1257,7 @@ public final class RecipeTreeTransfer {
             return List.of();
         }
         Map<String, ItemStack> samples = new LinkedHashMap<>();
+        Map<String, List<ItemStack>> groups = new LinkedHashMap<>();
         Map<String, Integer> wanted = new LinkedHashMap<>();
         int inputIndex = 0;
         for (IRecipeSlotView slot : layout.getRecipeSlotsView().getSlotViews()) {
@@ -1212,45 +1269,97 @@ public final class RecipeTreeTransfer {
                 inputIndex < selectedInputs.size() ? selectedInputs.get(inputIndex) : ""
             );
             inputIndex++;
-            ItemStack picked = RecipeLookup.candidateStacks(slot).stream()
-                .filter(stack -> !stack.isEmpty())
-                .filter(stack -> selected.isEmpty()
-                    || RecipeTreeData.ingredientKey(stack).equals(selected))
-                .findFirst()
-                .orElse(ItemStack.EMPTY);
-            if (picked.isEmpty()) {
+            List<ItemStack> candidates = restockGroup(slot, selected);
+            if (candidates.isEmpty()) {
                 continue;
             }
+            ItemStack picked = candidates.getFirst();
             long slotNeed = Math.min(
                 (long) Math.max(1, picked.getCount()) * batches,
                 picked.getMaxStackSize()
             );
-            String key = RecipeTreeData.ingredientKey(picked);
-            samples.putIfAbsent(key, picked.copy());
-            wanted.merge(key, (int) Math.min(Integer.MAX_VALUE, slotNeed), Integer::sum);
+
+            String signature = groupSignature(candidates);
+            samples.putIfAbsent(signature, picked.copy());
+            groups.putIfAbsent(signature, candidates);
+            wanted.merge(signature, (int) Math.min(Integer.MAX_VALUE, slotNeed), Integer::sum);
         }
         if (wanted.isEmpty()) {
             return List.of();
         }
+        return collectShortfalls(wanted, samples, groups, menu, player);
+    }
 
+    private static List<ItemStack> restockGroup(IRecipeSlotView slot, String selected) {
+        Map<String, ItemStack> unique = new LinkedHashMap<>();
+        for (ItemStack candidate : RecipeLookup.candidateStacks(slot)) {
+            if (candidate == null || candidate.isEmpty()) {
+                continue;
+            }
+            unique.putIfAbsent(RecipeTreeData.ingredientKey(candidate), candidate.copy());
+        }
+        if (unique.isEmpty()) {
+            return List.of();
+        }
+        List<ItemStack> ordered = new ArrayList<>(unique.size());
+        ItemStack preferred = selected.isEmpty() ? null : unique.get(selected);
+        if (preferred != null) {
+            ordered.add(preferred);
+        }
+        for (ItemStack candidate : unique.values()) {
+            if (ordered.size() >= MAX_RESTOCK_GROUP) {
+                break;
+            }
+            if (candidate != preferred) {
+                ordered.add(candidate);
+            }
+        }
+        return List.copyOf(ordered);
+    }
+
+    private static String groupSignature(List<ItemStack> candidates) {
+        StringBuilder builder = new StringBuilder();
+        for (ItemStack candidate : candidates) {
+            if (!builder.isEmpty()) {
+                builder.append(',');
+            }
+            builder.append(RecipeTreeData.ingredientKey(candidate));
+        }
+        return builder.toString();
+    }
+
+    private static List<StorageRestock.Need> collectShortfalls(
+        Map<String, Integer> wanted,
+        Map<String, ItemStack> samples,
+        Map<String, List<ItemStack>> groups,
+        AbstractContainerMenu menu,
+        Player player
+    ) {
         Map<String, Long> have = StorageRestock.counts(menu, player);
         List<StorageRestock.Need> result = new ArrayList<>();
         for (Map.Entry<String, Integer> entry : wanted.entrySet()) {
-            long missing = entry.getValue() - have.getOrDefault(entry.getKey(), 0L);
+            List<ItemStack> group = groups.get(entry.getKey());
+            ItemStack sample = samples.get(entry.getKey());
+            if (group == null || group.isEmpty() || sample == null || sample.isEmpty()) {
+                continue;
+            }
+            long owned = 0L;
+            for (ItemStack candidate : group) {
+                owned += have.getOrDefault(RecipeTreeData.ingredientKey(candidate), 0L);
+            }
+            long missing = entry.getValue() - owned;
             if (missing <= 0) {
                 continue;
             }
-            ItemStack sample = samples.get(entry.getKey());
-            if (sample == null || sample.isEmpty()) {
-                continue;
-            }
+            sample = sample.copy();
             sample.setCount(1);
-            long target = have.getOrDefault(entry.getKey(), 0L) + missing;
+            long target = owned + missing;
             result.add(new StorageRestock.Need(
                 sample,
-                entry.getKey(),
+                RecipeTreeData.ingredientKey(sample),
                 (int) Math.min(Integer.MAX_VALUE, missing),
-                (int) Math.min(Integer.MAX_VALUE, target)
+                (int) Math.min(Integer.MAX_VALUE, target),
+                group
             ));
         }
         return result;
@@ -1338,7 +1447,12 @@ public final class RecipeTreeTransfer {
             stored.merge(RecipeTreeData.ingredientKey(stack.stack()), stack.amount(), Long::sum);
         }
         for (StorageRestock.Need need : needs) {
-            if (stored.getOrDefault(need.key(), 0L) < need.amount()) {
+
+            long storedGroup = 0L;
+            for (ItemStack candidate : need.candidates()) {
+                storedGroup += stored.getOrDefault(RecipeTreeData.ingredientKey(candidate), 0L);
+            }
+            if (storedGroup < need.amount()) {
                 return false;
             }
         }
@@ -1609,6 +1723,7 @@ public final class RecipeTreeTransfer {
         java.util.Map.entry("transfer failed or nothing to transfer", "transfer_rejected"),
         java.util.Map.entry("transfer after restock failed", "transfer_rejected"),
         java.util.Map.entry("restock finished without a resume target", "restock_no_target"),
+        java.util.Map.entry("restock short", "restock_short"),
         java.util.Map.entry("timed machine", "timed_machine"),
         java.util.Map.entry("result slot out of range", "slot_out_of_range"),
         java.util.Map.entry("pickup", "pickup_failed"),

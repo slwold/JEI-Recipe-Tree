@@ -16,12 +16,33 @@ import java.util.Map;
 
 final class StorageRestock {
 
-    record Need(ItemStack stack, String key, int amount, int target) {
+    record Need(ItemStack stack, String key, int amount, int target, List<ItemStack> candidates) {
         Need {
             stack = stack == null ? ItemStack.EMPTY : stack.copy();
             key = key == null ? "" : key;
             amount = Math.max(0, amount);
             target = Math.max(0, target);
+            List<ItemStack> safe = new ArrayList<>();
+            if (candidates != null) {
+                for (ItemStack candidate : candidates) {
+                    if (candidate == null || candidate.isEmpty()) {
+                        continue;
+                    }
+                    safe.add(candidate.copy());
+                }
+            }
+            if (safe.isEmpty() && !stack.isEmpty()) {
+                safe.add(stack.copy());
+            }
+            candidates = List.copyOf(safe);
+        }
+
+        List<String> candidateKeys() {
+            List<String> keys = new ArrayList<>(candidates.size());
+            for (ItemStack candidate : candidates) {
+                keys.add(RecipeTreeData.ingredientKey(candidate));
+            }
+            return keys;
         }
     }
 
@@ -29,7 +50,9 @@ final class StorageRestock {
         WAIT, CONTINUE, DONE, FAILED
     }
 
-    private static final int WAIT_FRAMES = 40;
+    private static final int WAIT_FRAMES = 60;
+
+    private static final int MAX_ATTEMPTS = 2;
 
     private static final int SIA_WAIT_FRAMES = 30;
 
@@ -52,7 +75,16 @@ final class StorageRestock {
 
     private static boolean viaSia;
 
-    private static final Map<String, Integer> SIA_TARGETS = new LinkedHashMap<>();
+    private static final List<Need> SIA_NEEDS = new ArrayList<>();
+
+    record Short(ItemStack stack, String key, int missing, int need, long inventory, long network) {
+    }
+
+    private static final List<Short> SHORTFALL = new ArrayList<>();
+
+    private static final Map<String, Integer> ATTEMPTS = new LinkedHashMap<>();
+
+    private static List<Short> lastShortfall = List.of();
     private static String lastFailure = "";
 
     private StorageRestock() {
@@ -109,17 +141,23 @@ final class StorageRestock {
         }
         Player player = Minecraft.getInstance().player;
         List<List<ItemStack>> groups = new ArrayList<>(usable.size());
-        SIA_TARGETS.clear();
+        SIA_NEEDS.clear();
         for (Need need : usable) {
-            ItemStack wanted = need.stack().copy();
-            wanted.setCount(Math.max(1, need.target()));
-            groups.add(List.of(wanted));
-            SIA_TARGETS.put(need.key(), Math.max(1, need.target()));
+            int target = Math.max(1, need.target());
+            List<ItemStack> group = new ArrayList<>(need.candidates().size());
+            for (ItemStack candidate : need.candidates()) {
+                ItemStack wanted = candidate.copy();
+
+                wanted.setCount(target);
+                group.add(wanted);
+            }
+            groups.add(group);
+            SIA_NEEDS.add(new Need(need.stack(), need.key(), need.amount(), target, group));
         }
         SiaMaterialBridge.Result result = SiaMaterialBridge.restock(player, groups);
         if (result == SiaMaterialBridge.Result.UNAVAILABLE) {
             JERTLog.debug("restock: SIA rejected the request ({})", result);
-            SIA_TARGETS.clear();
+            SIA_NEEDS.clear();
             return false;
         }
         viaSia = true;
@@ -151,12 +189,17 @@ final class StorageRestock {
         }
         Step step = viaSia ? tickSia(menu, player) : runCursorSteps(menu, player, minecraft);
         if (step == Step.DONE) {
-            return Boolean.TRUE;
+
+            return SHORTFALL.isEmpty();
         }
         if (step == Step.FAILED) {
             return Boolean.FALSE;
         }
         return null;
+    }
+
+    static List<Short> shortfall() {
+        return lastShortfall;
     }
 
     private static Step runCursorSteps(AbstractContainerMenu menu, Player player, Minecraft minecraft) {
@@ -176,22 +219,51 @@ final class StorageRestock {
             return Step.DONE;
         }
         if (++frames > SIA_WAIT_FRAMES) {
+
+            recordSiaShortfall(menu, player);
             return failStep("SIA restock timed out");
         }
         return Step.WAIT;
     }
 
+    private static void recordSiaShortfall(AbstractContainerMenu menu, Player player) {
+        Map<String, Long> have = counts(menu, player);
+        for (Need need : SIA_NEEDS) {
+            long owned = groupOwned(need, have);
+            long missing = need.target() - owned;
+            if (missing <= 0) {
+                continue;
+            }
+            SHORTFALL.add(new Short(
+                need.stack(),
+                need.key(),
+                (int) Math.min(Integer.MAX_VALUE, missing),
+                need.target(),
+                owned,
+                -1L
+            ));
+        }
+    }
+
     private static boolean satisfied(AbstractContainerMenu menu, Player player) {
-        if (SIA_TARGETS.isEmpty()) {
+        if (SIA_NEEDS.isEmpty()) {
             return true;
         }
         Map<String, Long> have = counts(menu, player);
-        for (Map.Entry<String, Integer> entry : SIA_TARGETS.entrySet()) {
-            if (have.getOrDefault(entry.getKey(), 0L) < entry.getValue()) {
+        for (Need need : SIA_NEEDS) {
+            if (groupOwned(need, have) < need.target()) {
                 return false;
             }
         }
         return true;
+    }
+
+    private static long groupOwned(Need need, Map<String, Long> have) {
+        long total = 0L;
+        for (ItemStack candidate : need.candidates()) {
+            total += have.getOrDefault(RecipeTreeData.ingredientKey(candidate), 0L);
+        }
+        return total;
     }
 
     private static Step stepOnce(AbstractContainerMenu menu, Player player, Minecraft minecraft) {
@@ -202,7 +274,7 @@ final class StorageRestock {
             }
         }
         ItemStack carried = menu.getCarried();
-        return carried.isEmpty() ? request(menu) : place(menu, player, minecraft, carried);
+        return carried.isEmpty() ? request(menu, player) : place(menu, player, minecraft, carried);
     }
 
     private static Step pickNext(AbstractContainerMenu menu, Player player, Minecraft minecraft) {
@@ -213,8 +285,9 @@ final class StorageRestock {
         current = QUEUE.poll();
         if (current == null) {
 
-            JERTLog.debug("restock done taken={} skipped={} items={}",
-                takenTotal, skippedTotal, totalItems);
+            lastShortfall = List.copyOf(SHORTFALL);
+            JERTLog.debug("restock done taken={} skipped={} items={} short={}",
+                takenTotal, skippedTotal, totalItems, SHORTFALL.size());
             reset();
             return Step.DONE;
         }
@@ -224,16 +297,18 @@ final class StorageRestock {
         return Step.CONTINUE;
     }
 
-    private static Step request(AbstractContainerMenu menu) {
+    private static Step request(AbstractContainerMenu menu, Player player) {
         if (remaining <= 0) {
             current = null;
             return Step.CONTINUE;
         }
         if (awaitingCursor) {
-            return ++frames > WAIT_FRAMES ? failStep("cursor never received " + current.key()) : Step.WAIT;
+            return ++frames > WAIT_FRAMES
+                ? noteFailure(menu, player, "cursor_timeout")
+                : Step.WAIT;
         }
         if (!StorageDriverRegistry.requestWithdraw(menu, current.stack(), remaining)) {
-            return failStep("withdraw request rejected for " + current.key());
+            return noteFailure(menu, player, "withdraw_rejected");
         }
         awaitingCursor = true;
         frames = 0;
@@ -250,7 +325,7 @@ final class StorageRestock {
         frames = 0;
         if (!ItemStack.isSameItemSameComponents(carried, current.stack())) {
             depositOrStash(menu, player, minecraft);
-            return failStep("unexpected item on cursor: " + carried.getHoverName().getString());
+            return noteFailure(menu, player, "unexpected_item");
         }
         int carriedCount = carried.getCount();
         int take = Math.min(carriedCount, remaining);
@@ -259,7 +334,7 @@ final class StorageRestock {
         int slot = findDestination(menu, player, current.stack(), chunk);
         if (slot < 0) {
             depositOrStash(menu, player, minecraft);
-            return failStep("no inventory space for " + current.key());
+            return noteFailure(menu, player, "no_room");
         }
         placeInto(minecraft, menu, slot, chunk, wholeStack);
         takenTotal += chunk;
@@ -453,9 +528,66 @@ final class StorageRestock {
         return Step.FAILED;
     }
 
+    private static Step noteFailure(AbstractContainerMenu menu, Player player, String reason) {
+        Need failed = current;
+        int missing = Math.max(0, remaining);
+        current = null;
+        remaining = 0;
+        awaitingCursor = false;
+        frames = 0;
+        if (failed == null) {
+            return Step.CONTINUE;
+        }
+        int attempts = ATTEMPTS.merge(failed.key(), 1, Integer::sum);
+        if (attempts < MAX_ATTEMPTS) {
+            JERTLog.debug("restock: retry {} after {} (attempt {}/{})",
+                failed.key(), reason, attempts + 1, MAX_ATTEMPTS);
+            QUEUE.addLast(failed);
+            return Step.CONTINUE;
+        }
+        long inventory = counts(menu, player).getOrDefault(failed.key(), 0L);
+        long network = networkAmount(menu, failed.key());
+        SHORTFALL.add(new Short(
+            failed.stack(),
+            failed.key(),
+            missing <= 0 ? failed.amount() : missing,
+            failed.amount(),
+            inventory,
+            network
+        ));
+        skippedTotal++;
+        JERTLog.warn("restock stop short: need={} have={} network={} item={} reason={}",
+            failed.amount(), inventory, network, failed.key(), reason);
+        return Step.CONTINUE;
+    }
+
+    private static long networkAmount(AbstractContainerMenu menu, String key) {
+        try {
+            StorageNetworkIntegration.StorageSnapshot snapshot = StorageDriverRegistry.read(menu);
+            if (snapshot == null) {
+                return -1L;
+            }
+            long total = 0L;
+            for (StorageNetworkIntegration.StoredStack stored : snapshot.stacks()) {
+                if (stored == null || stored.stack() == null || stored.stack().isEmpty()) {
+                    continue;
+                }
+                if (key.equals(RecipeTreeData.ingredientKey(stored.stack()))) {
+                    total += stored.amount();
+                }
+            }
+            return total;
+        } catch (LinkageError | RuntimeException ignored) {
+            return -1L;
+        }
+    }
+
     private static void reset() {
+        lastShortfall = List.copyOf(SHORTFALL);
         QUEUE.clear();
-        SIA_TARGETS.clear();
+        SIA_NEEDS.clear();
+        SHORTFALL.clear();
+        ATTEMPTS.clear();
         current = null;
         remaining = 0;
         awaitingCursor = false;
@@ -480,6 +612,9 @@ final class StorageRestock {
                 builder.append(", ");
             }
             builder.append(need.key()).append(" x").append(need.amount());
+            if (need.candidates().size() > 1) {
+                builder.append(" (group=").append(need.candidates().size()).append(")");
+            }
         }
         return builder.toString();
     }
