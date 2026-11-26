@@ -1,12 +1,13 @@
 package com.slwold.jeirecipetree;
 
+import com.slwold.jeirecipetree.client.jei.JeiCapabilities;
+import com.slwold.jeirecipetree.client.storage.RtsStorageDriver;
+import com.slwold.jeirecipetree.client.storage.StorageDriverRegistry;
+import com.slwold.jeirecipetree.client.storage.StorageDrivers;
+import com.slwold.jeirecipetree.client.storage.TomsStorageDriver;
 import com.slwold.jeirecipetree.client.ConfigHygiene;
 import com.slwold.jeirecipetree.client.ConfigScreenRegistration;
 import com.slwold.jeirecipetree.client.JERTLog;
-import com.slwold.jeirecipetree.client.JeiCapabilities;
-import com.slwold.jeirecipetree.client.StorageDrivers;
-import com.slwold.jeirecipetree.client.StorageDriverRegistry;
-import com.slwold.jeirecipetree.client.RtsStorageDriver;
 import com.slwold.jeirecipetree.compat.ae2.Ae2StorageDriver;
 import com.mojang.logging.LogUtils;
 import net.neoforged.api.distmarker.Dist;
@@ -35,6 +36,10 @@ public final class JERT {
         StorageDrivers.registerStandard();
         if (ModList.get().isLoaded("ae2")) {
             Ae2StorageDriver.register();
+        }
+
+        if (ModList.get().isLoaded("toms_storage")) {
+            StorageDriverRegistry.register(TomsStorageDriver.INSTANCE);
         }
 
         if (ModList.get().isLoaded("rtsbuilding")) {
@@ -102,7 +107,7 @@ public final class JERT {
         StringBuilder present = new StringBuilder();
         for (String modId : new String[] {
             "ae2", "refinedstorage", "sophisticatedstorage", "create",
-            "sophisticateditemactions", "modernui"
+            "sophisticateditemactions", "modernui", "toms_storage"
         }) {
             if (!ModList.get().isLoaded(modId)) {
                 continue;

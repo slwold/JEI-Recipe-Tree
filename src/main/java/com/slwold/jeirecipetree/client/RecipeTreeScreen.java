@@ -1,5 +1,9 @@
 package com.slwold.jeirecipetree.client;
 
+import com.slwold.jeirecipetree.client.data.*;
+import com.slwold.jeirecipetree.client.ui.*;
+import com.slwold.jeirecipetree.client.jei.JeiTooltipCompat;
+import com.slwold.jeirecipetree.client.transfer.RecipeTreeTransfer;
 import com.slwold.jeirecipetree.core.ItemRef;
 import com.slwold.jeirecipetree.core.RecipeRecord;
 import com.slwold.jeirecipetree.core.ViewportFit;
@@ -103,7 +107,7 @@ public final class RecipeTreeScreen extends Screen {
         minecraft.setScreen(new RecipeEditScreen(minecraft.screen, layout, new RecipeDraft(draft)));
     }
 
-    static void afterImport(IRecipeLayoutDrawable<?> layout, String recordId) {
+    public static void afterImport(IRecipeLayoutDrawable<?> layout, String recordId) {
         if (RecipeTreeSession.canResolve(layout) && RecipeTreeSession.resolve(layout, recordId)) {
             returnToTree();
             return;
@@ -201,6 +205,9 @@ public final class RecipeTreeScreen extends Screen {
         lastInventoryHash = hash;
         SupplyLedger.invalidate();
         rebuildCosts(tree.analyze());
+        JERTLog.debug("cost refresh: root={} costs={} leftoverRows={} hash={}",
+            tree.root().ingredientKey, layout.costs().size(),
+            layout.costs().stream().filter(TreeLayout.RenderCost::leftover).count(), hash);
         RecipeTreeFavorites.refreshNow();
     }
 
@@ -215,6 +222,11 @@ public final class RecipeTreeScreen extends Screen {
         }
 
         layout.rebuild(tree, font, (cost, leftover) -> costText(cost, leftover), TreeText.scale());
+        JERTLog.debug("layout rebuild: root={} crafting={} costs={} leftoverRows={} recenter={}",
+            tree.root().ingredientKey, tree.craftingMode(), layout.costs().size(),
+            layout.costs().stream().filter(TreeLayout.RenderCost::leftover).count(), recenter);
+
+        RecipeTreeFavorites.refreshNow();
         if (recenter) {
             fitViewToContent();
         }

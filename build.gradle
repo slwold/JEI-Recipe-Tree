@@ -89,14 +89,14 @@ def mcJar = layout.buildDirectory.file('moddev/artifacts/neoforge-21.1.80-minecr
 tasks.register('testRecipeTreeMaterials', JavaExec) {
     dependsOn tasks.named('testClasses')
     classpath = sourceSets.test.runtimeClasspath
-    mainClass = 'com.slwold.jeirecipetree.client.RecipeTreeOutputChoicesTest'
+    mainClass = 'com.slwold.jeirecipetree.client.data.RecipeTreeOutputChoicesTest'
 }
 sourceSets.test.compileClasspath += sourceSets.main.compileClasspath
 
 tasks.register('testJeiInputBridge', JavaExec) {
     dependsOn tasks.named('testClasses')
     classpath = sourceSets.test.runtimeClasspath + files(mcJar)
-    mainClass = 'com.slwold.jeirecipetree.client.JeiInputBridgeTest'
+    mainClass = 'com.slwold.jeirecipetree.client.jei.JeiInputBridgeTest'
 }
 
 tasks.register('testCoreItemRef', JavaExec) {
@@ -120,7 +120,7 @@ tasks.register('testItemRefKeyParity', JavaExec) {
 tasks.register('testStorageDrivers', JavaExec) {
     dependsOn tasks.named('testClasses')
     classpath = sourceSets.test.runtimeClasspath
-    mainClass = 'com.slwold.jeirecipetree.client.StorageDriverRegistryTest'
+    mainClass = 'com.slwold.jeirecipetree.client.storage.StorageDriverRegistryTest'
 }
 
 tasks.register('testCraftQueue', JavaExec) {
@@ -150,7 +150,7 @@ tasks.register('testCostCalculatorOracle', JavaExec) {
 tasks.register('testRecipeLibrary', JavaExec) {
     dependsOn tasks.named('testClasses')
     classpath = sourceSets.test.runtimeClasspath + sourceSets.main.compileClasspath
-    mainClass = 'com.slwold.jeirecipetree.client.RecipeLibraryStoreTest'
+    mainClass = 'com.slwold.jeirecipetree.client.data.RecipeLibraryStoreTest'
 }
 
 tasks.register('testTransferPhase', JavaExec) {
@@ -180,7 +180,7 @@ tasks.register('testComplexityBudget', JavaExec) {
 tasks.register('testJeiCapabilities', JavaExec) {
     dependsOn tasks.named('testClasses')
     classpath = sourceSets.test.runtimeClasspath
-    mainClass = 'com.slwold.jeirecipetree.client.JeiCapabilitiesTest'
+    mainClass = 'com.slwold.jeirecipetree.client.jei.JeiCapabilitiesTest'
 }
 
 tasks.named('check') {
@@ -188,6 +188,7 @@ tasks.named('check') {
 }
 tasks.named('test') { enabled = false }
 
+apply from: 'gradle/client-sources.gradle'
 apply from: 'gradle/verify-jei.gradle'
 apply from: 'gradle/verify-core.gradle'
 apply from: 'gradle/verify-identity.gradle'
@@ -200,6 +201,7 @@ apply from: 'gradle/verify-config.gradle'
 apply from: 'gradle/verify-docs.gradle'
 apply from: 'gradle/verify-scan-gating.gradle'
 apply from: 'gradle/verify-library.gradle'
+apply from: 'gradle/verify-client-packages.gradle'
 apply from: 'gradle/compare-traces.gradle'
 tasks.named('check') {
     dependsOn 'verifyJeiCompatibility'
@@ -225,6 +227,7 @@ tasks.named('check') {
     dependsOn 'verifyViewportFit'
     dependsOn 'verifyUiLayers'
     dependsOn 'verifySessionMigration'
+    dependsOn 'verifyClientPackages'
 }
 
 tasks.register('testConfigBlocks', JavaExec) {

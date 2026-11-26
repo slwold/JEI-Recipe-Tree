@@ -1,4 +1,5 @@
 package com.slwold.jeirecipetree.mixin;
+import com.slwold.jeirecipetree.client.jei.JeiInputAreaCompat;
 import mezz.jei.common.util.ImmutableRect2i;
 import mezz.jei.gui.recipes.IRecipeGuiLogic;
 import org.spongepowered.asm.mixin.*;
@@ -15,7 +16,7 @@ public abstract class JeiInteractionTabsMixin {
 
     @Inject(method="scroll", at=@At("HEAD"), cancellable=true, remap=false)
     private void jert$scroll(double x, double y, double dx, double dy, CallbackInfoReturnable<Boolean> cir) {
-        if (com.slwold.jeirecipetree.client.JeiInputAreaCompat.scrollRecipeTabs(this, x, y, dy)) {
+        if (com.slwold.jeirecipetree.client.jei.JeiInputAreaCompat.scrollRecipeTabs(this, x, y, dy)) {
             cir.setReturnValue(true);
         }
     }

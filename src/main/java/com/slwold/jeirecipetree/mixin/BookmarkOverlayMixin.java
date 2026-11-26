@@ -1,5 +1,6 @@
 package com.slwold.jeirecipetree.mixin;
 
+import com.slwold.jeirecipetree.client.ui.*;
 import com.slwold.jeirecipetree.client.JeiTreeIntegration;
 
 import com.slwold.jeirecipetree.client.JERTLog;
@@ -7,6 +8,7 @@ import com.slwold.jeirecipetree.client.JERTLog;
 import com.slwold.jeirecipetree.JERT;
 import com.slwold.jeirecipetree.client.SafeConfig;
 import com.slwold.jeirecipetree.client.*;
+import com.slwold.jeirecipetree.client.jei.*;
 import mezz.jei.common.util.ImmutablePoint2i;
 import mezz.jei.common.util.ImmutableRect2i;
 import mezz.jei.gui.bookmarks.BookmarkList;

@@ -1,5 +1,6 @@
 package com.slwold.jeirecipetree.client;
 
+import com.slwold.jeirecipetree.client.data.*;
 import com.slwold.jeirecipetree.compat.sia.SiaMaterialBridge;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;

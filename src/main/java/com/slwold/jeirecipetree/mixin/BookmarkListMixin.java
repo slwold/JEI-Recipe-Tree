@@ -1,5 +1,6 @@
 package com.slwold.jeirecipetree.mixin;
 
+import com.slwold.jeirecipetree.client.ui.*;
 import com.slwold.jeirecipetree.client.JeiTreeIntegration;
 
 import mezz.jei.gui.bookmarks.BookmarkList;

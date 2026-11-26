@@ -1,13 +1,21 @@
+// 配置读取的安全边界：
+// 旧配置（残留已删除的键）会让框架走纠正 + 重写配置文件的路径，
+// 否则启动会停在加载进度条最后。
+// 两道防线：
+//   1) 启动期自愈（ConfigHygiene）——先自己把配置改对，不让框架纠正；
+//   2) 安全读取（SafeConfig）——纠正/重载窗口内读配置不得抛异常，
+//      因为读取点全在启动关键路径上（诊断日志、JEI 插件注册、mixin 注入判定）。
 tasks.register('verifyConfigSafety') {
     doLast {
-        def hygiene = file('src/main/java/com/slwold/jeirecipetree/client/ConfigHygiene.java')
-        def safe = file('src/main/java/com/slwold/jeirecipetree/client/SafeConfig.java')
+        def hygiene = clientSource('ConfigHygiene.java')
+        def safe = clientSource('SafeConfig.java')
         def keys = file('src/core/java/com/slwold/jeirecipetree/core/StaleConfigKeys.java')
         def spec = file('src/main/java/com/slwold/jeirecipetree/JERTConfig.java')
         def jert = file('src/main/java/com/slwold/jeirecipetree/JERT.java')
         def ready = file('src/main/java/com/slwold/jeirecipetree/JERTConfigReadiness.java')
         [hygiene, safe, keys, spec, jert, ready].each { assert it.exists() : "missing ${it}" }
 
+        // 1) 启动期自愈必须在模组构造期调用，且早于配置注册。
         def jertText = jert.getText('UTF-8')
         def repairAt = jertText.indexOf('repairStaleConfig();')
         def registerAt = jertText.indexOf('JERTConfig.register(')
@@ -16,6 +24,7 @@ tasks.register('verifyConfigSafety') {
         assert repairAt < registerAt :
             'the repair must run BEFORE the config is registered (the framework reads the file later)'
 
+        // 2) 配置读取只允许走 SafeConfig。
         def offenders = []
         file('src/main/java/com/slwold/jeirecipetree').eachFileRecurse { f ->
             if (!f.name.endsWith('.java')) return
@@ -29,18 +38,23 @@ tasks.register('verifyConfigSafety') {
         assert offenders.isEmpty() :
             "configuration must be read through SafeConfig, direct .get() found in: ${offenders}"
 
+        // 3) SafeConfig 自身必须吞掉所有异常（不只是 RuntimeException）。
         def safeText = safe.getText('UTF-8')
         assert safeText.contains('catch (Throwable error)') :
             'SafeConfig must catch Throwable: the config spec can fail with linkage errors too'
         assert safeText.contains('warnOnce(') :
             'SafeConfig must report the fallback once instead of silently swallowing it'
 
+        // 4) 键清单必须与 spec 的定义一致——新增配置项漏登记就会被当成陈旧键删掉。
         def specText = spec.getText('UTF-8')
+        // 用 Pattern 显式匹配：Groovy 的 =~ 与 /.../s 在这个写法上有解析歧义。
         def knownMatcher = java.util.regex.Pattern
             .compile('KNOWN_KEYS\\s*=\\s*java\\.util\\.Set\\.of\\((.*?)\\)', java.util.regex.Pattern.DOTALL)
             .matcher(specText)
         assert knownMatcher.find() : 'JERTConfig.KNOWN_KEYS must exist'
         def known = (knownMatcher.group(1) =~ /"([a-zA-Z]+)"/).collect { it[1] }
+        // DEFAULT_BLOCKS 的值是"注释行 + 键值行"的完整块（见 JERTConfig 的说明）：
+        // NeoForge 的 isCorrect 把注释不一致也算一次修正，只补值不补注释仍会被判否。
         def blocksMatcher = java.util.regex.Pattern
             .compile('DEFAULT_BLOCKS\\s*=\\s*java\\.util\\.Map\\.ofEntries\\((.*?)\\n    \\);', java.util.regex.Pattern.DOTALL)
             .matcher(specText)
@@ -50,6 +64,7 @@ tasks.register('verifyConfigSafety') {
         assert known.toSet() == blocks.toSet() :
             "KNOWN_KEYS and DEFAULT_BLOCKS must list the same keys: ${known} vs ${blocks}"
 
+        // 每块都必须以注释开头，否则框架会认为注释缺失并重写文件。
         def blockChunks = blocksBody.split('java\\.util\\.Map\\.entry\\(')
         blockChunks.drop(1).each { chunk ->
             def keyMatcher = java.util.regex.Pattern.compile('^"([a-zA-Z]+)"').matcher(chunk.trim())
@@ -58,19 +73,24 @@ tasks.register('verifyConfigSafety') {
                 "block for ${keyMatcher.group(1)} must start with a comment line"
         }
 
+        // 注释文本必须与 .comment(...) 的参数逐字一致——漂移一个字符就会被判"不正确"。
         def commentTexts = (blocksBody =~ /"#([^"\\]*(?:\\.[^"\\]*)*?)\\n"/).collect { it[1] }
         assert !commentTexts.isEmpty() : 'DEFAULT_BLOCKS must carry comment text'
         commentTexts.each { text ->
+            // 枚举配置的 Allowed Values 行由 NeoForge 的 defineEnum 依枚举常量自动追加，
+            // 源码里没有对应参数，只校验我们自己写的那几句说明。
             if (text.startsWith('Allowed Values: ')) return
             assert specText.contains(text) :
                 "config comment drifted from DEFAULT_BLOCKS (must match .comment(...) verbatim): ${text}"
         }
 
+        // 5) spec 里定义的每个键都必须登记在清单里。
         def defined = (specText =~ /\.define(?:List)?\("([a-zA-Z]+)"/).collect { it[1] }
         def missing = defined.findAll { !known.contains(it) }
         assert missing.isEmpty() :
             "these config keys are defined but not registered in KNOWN_KEYS: ${missing}"
 
+        // 6) 纯逻辑清理器必须存在且被测试覆盖。
         assert keys.getText('UTF-8').contains('isTableHeader') :
             'the stale-key cleaner must distinguish table-scoped keys from top-level ones'
         def test = file('src/test/java/com/slwold/jeirecipetree/core/StaleConfigKeysTest.java')
@@ -79,6 +99,7 @@ tasks.register('verifyConfigSafety') {
         assert testText.contains('replaceVanillaRecipeBook') :
             'the regression test must use a real legacy key from an older config'
 
+        // 7) 配置重载事件必须被处理，否则纠正后开发者模式状态会停在旧值。
         assert ready.getText('UTF-8').contains('ModConfigEvent.Reloading') :
             'JERTConfigReadiness must handle ModConfigEvent.Reloading'
 
@@ -87,9 +108,12 @@ tasks.register('verifyConfigSafety') {
     }
 }
 
+// 配置自愈的路径来源必须能在**模组构造期**工作。
+// 用 Minecraft.getInstance() 取路径：构造期返回 null，NPE 被 catch 吞掉，
+// 整个自愈成了死代码，日志里连一行提示都没有。
 tasks.register('verifyConfigPathSource') {
     doLast {
-        def hygiene = file('src/main/java/com/slwold/jeirecipetree/client/ConfigHygiene.java')
+        def hygiene = clientSource('ConfigHygiene.java')
         assert hygiene.exists()
         def text = hygiene.getText('UTF-8')
         assert text.contains('FMLPaths.CONFIGDIR') :

@@ -1,7 +1,11 @@
+// 玩家配方库是树展开的唯一数据源（G1/G2 / C2）。
+//
+// 为什么单独一条：旧实现靠"玩家指定过配方"才展开一层，且要问 JEI 索引、建布局。
+// 目标是库里有该材料的配方就继续往下，直到没有配方的原料。这条守住别回潮。
+
 tasks.register('verifyLibrarySource') {
     doLast {
-        def client = file('src/main/java/com/slwold/jeirecipetree/client')
-        def read = { String name -> new File(client, name).getText('UTF-8') }
+        def read = { String name -> clientSource(name).getText('UTF-8') }
 
         def data = read('RecipeTreeData.java')
         assert !data.contains('RecipeLookup.candidates(') :
@@ -22,8 +26,14 @@ tasks.register('verifyLibrarySource') {
             'fluid slots must stay renderable'
 
         def archive = read('RecipeArchive.java')
+        // 槽用量必须按"该材料的真实单位"落库：流体与化学品是 mB，代表容器的 count 恒为
+        // 图标个数（250 mB 也是一桶、1000 mB 氧气也是一张卡）。4.0 起这条统一由
+        // IngredientDisplay.amountOf 提供，它内部对流体仍走 FluidStack，对化学品走
+        // ChemicalStack#getAmount，因此"不能取 container count"的原意不变。
         assert archive.contains('IngredientDisplay.amountOf(') :
             'slot amounts must be the real amount (fluid/chemical mB), never the display count'
+        // 3.10.5 起流体在树里也按 mB 记账：编辑界面写的是 mB，树若再折成"容器个数"，
+        // 同一个数字会被换算两遍（输入 11 显示 1100）。这条现在反过来守"不要再折"。
         assert !archive.contains('FluidRecipeCompat.containerCount(slot.amount())') :
             'fluid slot amounts must stay in mB; folding them to container counts double-converts editor input'
         assert !read('RecipeTreeScreen.java').contains('rotatingStack') :
@@ -40,10 +50,14 @@ tasks.register('verifyLibrarySource') {
         def resolveBody = session.substring(session.indexOf('public static boolean resolve('))
         assert resolveBody.contains('tree.rebuild()') :
             'adding a recipe to a selected node must rebuild the tree'
+        // 3.10.6：库对同一产物常有多条配方，RecipeLibrary.match 只给最早那条，
+        // 所以"重建"之外必须把玩家选的这条绑到节点上，否则换了配方树纹丝不动。
         assert resolveBody.contains('tree.bindResolution(') :
             'resolving must bind the chosen recipe to that node: a rebuild alone keeps the library first match'
 
         def screen = read('RecipeTreeScreen.java')
+        // 配方页按钮只负责开编辑器，玩家点「保存」才写库（导入 → 编辑 → 入库）。
+        // 编辑器是独立界面：浮层与 JEI 抢同一渲染层，JEI 的配方网格会压在编辑槽上。
         assert screen.contains('new RecipeEditScreen(minecraft.screen, layout, new RecipeDraft(draft))') :
             'the recipe-page button must open the edit screen'
         assert !screen.contains('RecipeEditOverlay') :
@@ -53,6 +67,8 @@ tasks.register('verifyLibrarySource') {
         assert !screen.contains('RecipeArchive.importLayout(layout)') :
             'the button must not write the library before the player confirms'
         def editScreen = read('RecipeEditScreen.java')
+        // "原配方（只读）"预览框已退役：JEI 侧栏已能在容器壳上
+        // 正常渲染，预览框只会挡视野；layout 仅保留给保存后的建树回调。
         assert !editScreen.contains('layout.drawRecipe') :
             'the original recipe preview is gone by decision; look at the real JEI page instead'
         assert editScreen.contains('super.render(graphics, mouseX, mouseY, partialTick)') :
@@ -65,20 +81,25 @@ tasks.register('verifyLibrarySource') {
             'addGhostIngredientHandler(RecipeEditScreen.class, new EditDragHandler())') :
             'ghost drag must be registered on the edit screen so items can be dragged into slots'
         def editPanel = read('RecipeEditPanel.java')
+        // 交互模型照 JEC 的「手上标签」状态机：空槽点击不再弹选择器
+        // （JEC 的 WLabel 对空槽没有分支），取物只能靠「标签」按钮 → 手上 → 点槽放下。
+        // 死路防护换一种写法继续盯着：手上拿得到东西，且放下真的落进槽里。
         assert editPanel.contains('grabFromPicker()') :
-            'the 标签 button must be able to grab an identity into the hand (reference implementation path)'
+            'the 标签 button must be able to grab an identity into the hand (JEC GuiLabel path)'
         assert editPanel.contains('private void putHand(int ordinal, int index)') :
-            'an empty cell must accept the hand (reference implementation): a grid the player cannot fill is a dead end'
+            'an empty cell must accept the hand (JEC WLabel place): a grid the player cannot fill is a dead end'
         assert !editPanel.contains('openPickerForAdd') :
-            'empty-cell click must not open the picker any more (an empty slot has no branch)'
+            'empty-cell click must not open the picker any more (JEC: empty slot has no branch)'
         assert editPanel.contains('if (button != 0)') :
-            'right click on a slot must do nothing (the reference implementation returns false for button 1)'
+            'right click on a slot must do nothing (JEC WLabel returns false for button 1)'
         assert editPanel.contains('private void clearHand()') :
-            'clicking blank space and pressing Esc must discard the hand (reference implementation semantics)'
+            'clicking blank space and pressing Esc must discard the hand (JecaGui semantics)'
         assert editPanel.contains('picker.open(') :
             'clicking a slot must open the candidate picker: cycling candidates is not choosing'
         assert !editPanel.contains('rotateAlternative') :
             'candidate cycling is gone; the picker replaces it'
+        // 2.14 阶段：数量角标的画法收到 AmountText（整数落点、只按 1/0.5 两档缩放），
+        // 原来这里钉的是字面量 0.75。断言改盯"必须是半号"，否则图标右下角会被数字盖住。
         assert editPanel.contains('AmountText.HALF') :
             'the amount badge must be drawn at half size, otherwise it covers the item icon'
         def picker = read('CandidatePicker.java')
@@ -90,11 +111,14 @@ tasks.register('verifyLibrarySource') {
             'the panel must not touch the library at all (constant GROUP reference is fine; calls are not)'
         assert screen.contains('category() == null') :
             'library recipes have no JEI category; rendering must tolerate that'
+        // 3.10.6：树里的「物品目录」入口没有点击回调，选了也写不回节点，是死路；
+        // JEI 配方页自带的那套目录（DirectoryIngredientElement）与它无关，仍然保留。
         assert !screen.contains('showCandidateDirectory') :
             'the tree must not open the JEI directory page: it has no callback back into the node'
         assert screen.contains('chooseInput(node)') :
             'picking which item a slot means must go through the picker (one entry point)'
 
+        // 同类大类由代码识别；化学品不写任何 mod 专用逻辑，交给玩家手写配方。
         assert data.contains('if (childRecipe == null && !selected.explicit())') :
             'a same-type input slot must try every alternative when looking up recipes'
         assert stored.contains('ItemKeys.withIdentity(display, key)') :
@@ -103,10 +127,14 @@ tasks.register('verifyLibrarySource') {
         assert keys.contains('IDENTITY_TAG') :
             'the identity override must live in the single ItemStack -> ItemRef converter'
         [stored, keys].each { text ->
+            // 4.0 起允许"读数量"的反射（JEI 的 getAmount 对化学品返回 -1，只能问对象本身），
+            // 但仍禁止任何**代码级**的 mod 依赖（包名/类名引用）。这个边界由
+            // IngredientDisplay 一个类承担，其余层不碰任何 mod 的类型。
             assert !(text =~ /mekanism\./) :
                 'no mod-typed code outside IngredientDisplay: quantity reflection is isolated there'
         }
 
+        // 手写库写坏 JSON 时绝不允许覆盖整份库（load 对坏文件返回空库，会清库）。
         def archiveImports = read('RecipeArchive.java')
         assert archiveImports.contains('RecipeLibraryStore.looksCorrupt(file)') :
             'a corrupt library file must block the import write path'

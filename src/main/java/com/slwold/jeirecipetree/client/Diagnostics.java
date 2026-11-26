@@ -1,5 +1,10 @@
 package com.slwold.jeirecipetree.client;
 
+import com.slwold.jeirecipetree.client.data.*;
+import com.slwold.jeirecipetree.client.jei.JeiCapabilities;
+import com.slwold.jeirecipetree.client.storage.Ae2StorageIntegration;
+import com.slwold.jeirecipetree.client.storage.StorageDriverRegistry;
+import com.slwold.jeirecipetree.client.transfer.RecipeTreeTransfer;
 import com.slwold.jeirecipetree.JERT;
 import com.slwold.jeirecipetree.compat.sia.SiaMaterialBridge;
 import net.minecraft.client.Minecraft;

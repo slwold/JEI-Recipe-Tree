@@ -1,6 +1,6 @@
 package com.slwold.jeirecipetree.mixin;
 
-import com.slwold.jeirecipetree.client.JeiReflectionCompat;
+import com.slwold.jeirecipetree.client.jei.JeiReflectionCompat;
 import mezz.jei.common.util.ImmutableRect2i;
 import mezz.jei.gui.PageNavigation;
 import mezz.jei.gui.recipes.IRecipeGuiLogic;

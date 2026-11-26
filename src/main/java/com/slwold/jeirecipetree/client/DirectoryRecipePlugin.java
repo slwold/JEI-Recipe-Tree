@@ -1,5 +1,8 @@
 package com.slwold.jeirecipetree.client;
 
+import com.slwold.jeirecipetree.client.data.*;
+import com.slwold.jeirecipetree.client.ui.*;
+import com.slwold.jeirecipetree.client.jei.DirectoryRecipeCategory;
 import mezz.jei.api.IModPlugin;
 import mezz.jei.api.JeiPlugin;
 import mezz.jei.api.helpers.IGuiHelper;

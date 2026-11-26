@@ -1,5 +1,13 @@
 package com.slwold.jeirecipetree.client;
 
+import com.slwold.jeirecipetree.client.data.*;
+import com.slwold.jeirecipetree.client.ui.*;
+import com.slwold.jeirecipetree.client.jei.JeiReflectionCompat;
+import com.slwold.jeirecipetree.client.jei.JeiTooltipCompat;
+import com.slwold.jeirecipetree.client.jei.RecipeBookmarkNavigationContext;
+import com.slwold.jeirecipetree.client.storage.Ae2StorageIntegration;
+import com.slwold.jeirecipetree.client.storage.StorageNetworkIntegration;
+import com.slwold.jeirecipetree.client.transfer.RecipeTreeTransfer;
 import com.slwold.jeirecipetree.mixin.BookmarkListAccessor;
 import com.mojang.blaze3d.platform.InputConstants;
 import mezz.jei.api.constants.VanillaTypes;
@@ -167,7 +175,8 @@ public final class RecipeTreeFavorites {
     }
 
     public static boolean isActive() {
-        RecipeTreeData.Tree tree = RecipeTreeSession.craftingTree();
+
+        RecipeTreeData.Tree tree = RecipeTreeSession.tree();
 
         if (tree != null && tree.craftingMode() && elements.isEmpty()) {
             refreshThrottled();
@@ -183,7 +192,7 @@ public final class RecipeTreeFavorites {
             && containsIngredientKey(requiredIngredientKeys, stack);
     }
 
-    static boolean isRequiredKey(String key) {
+    public static boolean isRequiredKey(String key) {
         return isActive() && key != null && requiredIngredientKeys.contains(key);
     }
 
@@ -194,7 +203,7 @@ public final class RecipeTreeFavorites {
             && containsIngredientKey(intermediateIngredientKeys, stack);
     }
 
-    static boolean isIntermediateKey(String key) {
+    public static boolean isIntermediateKey(String key) {
         return isActive() && key != null && intermediateIngredientKeys.contains(key);
     }
 
@@ -205,7 +214,7 @@ public final class RecipeTreeFavorites {
             && containsIngredientKey(finalProductIngredientKeys, stack);
     }
 
-    static boolean isFinalProductKey(String key) {
+    public static boolean isFinalProductKey(String key) {
         return isActive() && key != null && finalProductIngredientKeys.contains(key);
     }
 
@@ -260,8 +269,8 @@ public final class RecipeTreeFavorites {
             return false;
         }
         String name = slot.getClass().getName();
-        return name.endsWith(".RepoSlot")
-            || (name.contains("beyonddimensions") && name.contains("StackTypedSlot"));
+
+        return name.endsWith(".RepoSlot");
     }
 
     public static void renderVirtualNetworkHighlights(
@@ -337,7 +346,7 @@ public final class RecipeTreeFavorites {
     private static void refreshNowMeasured() {
         lastRefreshNanos = System.nanoTime();
         lastRefreshMenu = Ae2StorageIntegration.activeMenu();
-        RecipeTreeData.Tree tree = RecipeTreeSession.craftingTree();
+        RecipeTreeData.Tree tree = RecipeTreeSession.tree();
         lastRefreshStorageRevision = tree != null && tree.craftingMode()
             ? StorageNetworkIntegration.snapshotRevision()
             : Long.MIN_VALUE;
@@ -349,16 +358,18 @@ public final class RecipeTreeFavorites {
         Set<String> nextIntermediate = new HashSet<>();
         Set<String> nextFinal = new HashSet<>();
         StringBuilder nextSignature = new StringBuilder();
+        boolean hideRawRows = SafeConfig.hideRawMaterialRows();
         int columns = bookmarkColumns();
         int nativeBookmarks = 0;
 
         Map<String, Long> inventoryAmounts = Map.of();
 
-        if (tree != null && tree.craftingMode() && runtime != null) {
-            inventoryAmounts = SupplyLedger.playerAmounts();
+        if (tree != null && runtime != null) {
+            inventoryAmounts = SupplyLedger.planningAmounts();
             nativeBookmarks = nativeBookmarkCount();
 
-            nextSignature.append('L').append(columns).append(':').append(nativeBookmarks).append(';');
+            nextSignature.append('L').append(columns).append(':').append(nativeBookmarks)
+                .append(":H").append(hideRawRows ? 1 : 0).append(';');
             String rootKey = tree.root().ingredientKey();
             nextFinal.add(rootKey);
             for (RecipeTreeData.CraftStep step : tree.craftingSteps()) {
@@ -386,7 +397,8 @@ public final class RecipeTreeFavorites {
 
             RecipeTreeData.Analysis analysis = tree.analyze();
             for (RecipeTreeData.Cost cost : analysis.costs()) {
-                long owned = SupplyLedger.inventoryAmount(cost.alternatives(), inventoryAmounts);
+
+                long owned = cost.supplied();
                 for (ItemStack alternative : cost.alternatives()) {
                     nextRequired.add(RecipeTreeData.ingredientKey(alternative));
                 }
@@ -401,11 +413,15 @@ public final class RecipeTreeFavorites {
         }
 
         List<IElement<?>> next = new ArrayList<>();
-        groupSizes = new int[] {finalProducts.size(), intermediateProducts.size(), rawMaterials.size()};
+
+        groupSizes = new int[] {finalProducts.size(), intermediateProducts.size(),
+            hideRawRows ? 0 : rawMaterials.size()};
 
         next.addAll(finalProducts);
         next.addAll(intermediateProducts);
-        next.addAll(rawMaterials);
+        if (!hideRawRows) {
+            next.addAll(rawMaterials);
+        }
 
         String newSignature = nextSignature.toString();
         boolean changed = !newSignature.equals(signature);
@@ -546,7 +562,7 @@ public final class RecipeTreeFavorites {
         return FluidRecipeCompat.toTyped(runtime.getIngredientManager(), stack);
     }
 
-    static String amount(long value) {
+    public static String amount(long value) {
         if (value >= 1_000_000_000L) {
             return String.format(java.util.Locale.ROOT, "%.1fB", value / 1_000_000_000.0).replace(".0", "");
         }

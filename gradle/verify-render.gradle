@@ -1,6 +1,12 @@
+// 渲染层级机检（B5 第一刀）：项目规矩第 15 条的层级表不许回潮。
+//
+// 迁移前 6 个 z 值硬编码散在 RecipeTreeScreen / RecipeTreeSidebarPanel，
+// 存储高亮里另有 4 个。任何一处调层都可能让"物品 vs 角标""角标 vs tooltip"
+// 的遮挡关系悄悄反过来，症状只是某个角标被盖住，不抛异常也不报错。
+
 tasks.register('verifyRenderLayers') {
     doLast {
-        def layers = file('src/main/java/com/slwold/jeirecipetree/client/RenderLayers.java')
+        def layers = clientSource('RenderLayers.java')
         assert layers.exists() : 'RenderLayers must remain the single source of z-order truth'
         def text = layers.getText('UTF-8')
 
@@ -20,6 +26,9 @@ tasks.register('verifyRenderLayers') {
         assert number('TOOLTIP') == 800 :
             'ModernUI self-draws its tooltip below 300; JERT tooltips must stay at z=800'
 
+        // renderItem 在父 pose 上再加 150（字节码：GuiGraphics.renderItem -> pose.translate(x+8,y+8,150)）。
+        // 任何"要压住图标"的层只要 ≤ 150，就会被图标整块盖住，而且不报错——
+        // 悬停白底（有物品的格子完全没反馈）与候选面板金框都踩过这一条。
         def icon = number('ICON')
         assert icon > number('SLOT_HIGHLIGHT') :
             'the container slot tint must stay below the item icon'
@@ -35,6 +44,9 @@ tasks.register('verifyRenderLayers') {
         }
         assert number('PANEL_HAND') < number('TOOLTIP') : 'the hand label must stay below tooltips'
 
+        // UI 文件里 pose().translate 的第三个参数只允许 0（纯平移）或 RenderLayers 常量。
+        // 只点几个文件的话，编辑页(200/250/260)、候选面板(300)与 mixin(5) 的字面量
+        // 全在检查之外，"改了一处、另一处悄悄反序"就查不出来。
         def uiFiles = ['RecipeTreeScreen.java', 'RecipeTreeSidebarPanel.java',
                        'StorageNetworkIntegration.java', 'AmountOverlay.java',
                        'RecipeEditPanel.java', 'CandidatePicker.java',
@@ -49,7 +61,7 @@ tasks.register('verifyRenderLayers') {
             }
         }
         uiFiles.each { name ->
-            def file = file('src/main/java/com/slwold/jeirecipetree/client/' + name)
+            def file = clientSource(name)
             assert file.exists() : "missing ${name}"
             scanDepth(name, file.getText('UTF-8'))
         }
@@ -63,10 +75,11 @@ tasks.register('verifyRenderLayers') {
     }
 }
 
+// B5 第二刀：视口适配（0.5/1/2x 缩放门禁）的算法与常量必须留在 core。
 tasks.register('verifyViewportFit') {
     doLast {
         def fit = file('src/core/java/com/slwold/jeirecipetree/core/ViewportFit.java')
-        def screen = file('src/main/java/com/slwold/jeirecipetree/client/RecipeTreeScreen.java')
+        def screen = clientSource('RecipeTreeScreen.java')
         def test = file('src/test/java/com/slwold/jeirecipetree/core/ViewportFitTest.java')
         [fit, screen, test].each { assert it.exists() : "missing ${it}" }
 
@@ -79,6 +92,7 @@ tasks.register('verifyViewportFit') {
         assert screenText.contains('ViewportFit.fit(') :
             'the screen must delegate viewport fitting to core'
 
+        // 缩放上下限/留白/边距不许再散在界面层
         def strays = []
         ['0.10f', 'contentPadding', 'availableWidth', 'availableHeight', 'contentWidth', 'contentHeight']
             .each { token ->
@@ -95,10 +109,15 @@ tasks.register('verifyViewportFit') {
     }
 }
 
+// 兄弟节点必须按固定步距排。
+//
+// 2.15.8 把布局从"序号 × 中心距"改成"上一个叶子的右缘 + 留白 8"推进光标，而叶子只有 51 宽：
+// 中心距算出来 59，比配方节点（72）窄 13 → 每对兄弟横向压进去 13px，实机就是"子节点叠在一起"。
+// 固定步距（最宽节点 + 留白）之后，同层中心距恒为 80 的整数倍，重叠在结构上不可能发生。
 tasks.register('verifyTreeLayout') {
     doLast {
-        def layout = file('src/main/java/com/slwold/jeirecipetree/client/TreeLayout.java')
-        def screen = file('src/main/java/com/slwold/jeirecipetree/client/RecipeTreeScreen.java')
+        def layout = clientSource('TreeLayout.java')
+        def screen = clientSource('RecipeTreeScreen.java')
         [layout, screen].each { assert it.exists() : "missing ${it}" }
         def layoutText = layout.getText('UTF-8')
         def screenText = screen.getText('UTF-8')
@@ -125,6 +144,7 @@ tasks.register('verifyTreeLayout') {
     }
 }
 
+
 tasks.register('verifySlotClassification') {
     doLast {
         def mixin = file('src/main/java/com/slwold/jeirecipetree/mixin/AbstractContainerScreenMixin.java')
@@ -136,13 +156,15 @@ tasks.register('verifySlotClassification') {
         assert !perKind.find() : 'slot hooks must call classify() once, not three per-kind queries'
         assert text.contains('JeiTreeIntegration.classify(') :
             'the slot hooks must use the combined classify() query'
-        def favorites = file('src/main/java/com/slwold/jeirecipetree/client/RecipeTreeFavorites.java')
+        def favorites = clientSource('RecipeTreeFavorites.java')
         def favText = favorites.getText('UTF-8')
         assert favText.contains('public static int classify(ItemStack stack)') :
             'RecipeTreeFavorites.classify must exist'
+        // 分类位必须三态齐全，否则高亮会退化成"只有一类"
         ['CLASS_FINAL', 'CLASS_INTERMEDIATE', 'CLASS_REQUIRED'].each { bit ->
             assert favText.contains(bit) : "missing classification bit ${bit}"
         }
         println 'Slot classification checks passed: single getUniqueId per slot, classify() wired, 3 bits present'
     }
 }
+

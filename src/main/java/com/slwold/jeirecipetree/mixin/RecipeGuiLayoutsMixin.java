@@ -1,8 +1,8 @@
 package com.slwold.jeirecipetree.mixin;
 
+import com.slwold.jeirecipetree.client.jei.DirectoryIngredientElement;
+import com.slwold.jeirecipetree.client.jei.JeiReflectionCompat;
 import com.slwold.jeirecipetree.client.SafeConfig;
-import com.slwold.jeirecipetree.client.DirectoryIngredientElement;
-import com.slwold.jeirecipetree.client.JeiReflectionCompat;
 import mezz.jei.api.gui.inputs.RecipeSlotUnderMouse;
 import mezz.jei.api.ingredients.ITypedIngredient;
 import mezz.jei.gui.input.IClickableIngredientInternal;

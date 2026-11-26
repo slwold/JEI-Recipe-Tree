@@ -1,3 +1,12 @@
+// 文档与代码的一致性。
+//
+// 为什么需要这条：README / CODING-STANDARD 里写着测试与机检的数量，很容易过时。
+// 文档说错数字比不说更糟——读者会拿它做判断，
+// 而没人会去数。这里把数字变成可校验的事实：新增一个测试或机检，忘了改文档就会构建失败。
+//
+// 2026-11-11：原先还校验 INDEPENDENT-REWRITE.md 与 PLATFORM-PORTABILITY.md 的类数，
+// 那两份文档经用户判定为错误内容，已删除；这里同步去掉对应断言，只保留仍然可信的两份。
+
 tasks.register('verifyDocCounts') {
     doLast {
         def buildText = file('build.gradle').getText('UTF-8')
@@ -9,7 +18,8 @@ tasks.register('verifyDocCounts') {
             .size()
         assert tests > 0 && verifies > 0 : 'failed to count test/verify tasks'
 
-        ['README.md'].each { path ->
+        // 这两份文档都直接引用数字，措辞必须一致，否则这里的断言也失去意义。
+        ['README.md', 'docs/CODING-STANDARD.md'].each { path ->
             def text = file(path).getText('UTF-8')
             assert text.contains("${tests} 个 headless 测试") :
                 "${path}: must state \"${tests} 个 headless 测试\" (actual task count)"

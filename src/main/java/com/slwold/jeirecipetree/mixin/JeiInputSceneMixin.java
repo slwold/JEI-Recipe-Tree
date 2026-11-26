@@ -1,6 +1,6 @@
 package com.slwold.jeirecipetree.mixin;
 
-import com.slwold.jeirecipetree.client.JeiInputAreaCompat;
+import com.slwold.jeirecipetree.client.jei.JeiInputAreaCompat;
 import org.spongepowered.asm.mixin.*;
 import org.spongepowered.asm.mixin.injection.*;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;

@@ -1,0 +1,37 @@
+// 客户端分包规则（30 法则）。
+//
+// 为什么单独一条：client 曾经把 79 个类平铺在一个包里，同包互调不需要 import，
+// 依赖方向既不可见也不可度量。拆包后必须守住两件事：
+//   1. 一个类文件所在的目录与它的 package 声明一致；
+//   2. 每个包不超过 30 个类（Lippert & Roock《大型软件项目重构》的 30 法则）。
+// 只查结构，不查行为：本任务与 verifyDocCounts 的机检计数直接挂钩。
+
+tasks.register('verifyClientPackages') {
+    doLast {
+        def root = file('src/main/java/com/slwold/jeirecipetree/client')
+        assert root.isDirectory() : 'missing client source root'
+        def subdirs = ['data', 'ui', 'transfer', 'storage', 'jei']
+        def packages = ['(root)'] + subdirs
+        def total = 0
+
+        packages.each { pkg ->
+            def dir = pkg == '(root)' ? root : new File(root, pkg)
+            def files = dir.listFiles()?.findAll { it.name.endsWith('.java') } ?: []
+            total += files.size()
+            assert files.size() <= 30 :
+                "client/${pkg} has ${files.size()} classes, over the 30-class/pack limit"
+
+            def expected = pkg == '(root)'
+                ? 'package com.slwold.jeirecipetree.client;'
+                : "package com.slwold.jeirecipetree.client.${pkg};"
+            files.each { f ->
+                def text = f.getText('UTF-8')
+                assert text.contains(expected) :
+                    "${f.path}: package declaration must be '${expected}'"
+            }
+        }
+
+        assert total >= 60 : "client package looks gutted: only ${total} classes"
+        println "Client package checks passed: ${packages.size()} packages, ${total} classes, all <= 30"
+    }
+}

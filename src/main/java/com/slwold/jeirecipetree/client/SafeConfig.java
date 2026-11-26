@@ -54,6 +54,10 @@ public final class SafeConfig {
         return getBoolean(JERTConfig.PER_ITEM_CRAFTING, true);
     }
 
+    public static boolean hideRawMaterialRows() {
+        return getBoolean(JERTConfig.HIDE_RAW_MATERIAL_ROWS, true);
+    }
+
     public static boolean developerMode() {
         return getBoolean(JERTConfig.DEVELOPER_MODE, false);
     }

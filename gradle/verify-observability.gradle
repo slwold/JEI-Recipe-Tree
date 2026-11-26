@@ -1,9 +1,16 @@
+// 可观测性机检：用构建期断言拦住三类问题回潮。
+//
+// 背景（都来自 26.3-Vanilla 的 latest.log / F9 快照）：
+//   1. 启动行 `dev=unknown`，但 F9 里 `dev=true` —— 构造期读配置太早，启动自检说了假话；
+//   2. 输入层先打 "event layer stands down"，又打 WARN "event layer handles clicks" —— 自相矛盾；
+//   3. 转移状态机 22 个退出点全静默，卡住时日志突然断掉，无法回答卡在哪一步。
+
 tasks.register('verifyStartupDiagnostics') {
     doLast {
         def jert = file('src/main/java/com/slwold/jeirecipetree/JERT.java')
         def readiness = file('src/main/java/com/slwold/jeirecipetree/JERTConfigReadiness.java')
-        def sidebar = file('src/main/java/com/slwold/jeirecipetree/client/RecipeTreeSidebarPanel.java')
-        def logFacade = file('src/main/java/com/slwold/jeirecipetree/client/JERTLog.java')
+        def sidebar = clientSource('RecipeTreeSidebarPanel.java')
+        def logFacade = clientSource('JERTLog.java')
         [jert, readiness, sidebar, logFacade].each { assert it.exists() : "missing ${it}" }
 
         def jertText = jert.getText('UTF-8')
@@ -36,7 +43,7 @@ tasks.register('verifyStartupDiagnostics') {
 
 tasks.register('verifyTransferObservability') {
     doLast {
-        def transfer = file('src/main/java/com/slwold/jeirecipetree/client/RecipeTreeTransfer.java')
+        def transfer = clientSource('RecipeTreeTransfer.java')
         def phase = file('src/core/java/com/slwold/jeirecipetree/core/TransferPhase.java')
         def test = file('src/test/java/com/slwold/jeirecipetree/core/TransferPhaseTest.java')
         [transfer, phase, test].each { assert it.exists() : "missing ${it}" }
@@ -44,12 +51,17 @@ tasks.register('verifyTransferObservability') {
         def text = transfer.getText('UTF-8')
         assert text.contains('com.slwold.jeirecipetree.core.TransferPhase') :
             'transfer state machine must expose a phase for logs and F9'
-        assert text.contains('private static void clearPending(String reason)') :
+        assert text.contains('static void clearPending(String reason)') :
             'exit points must go through the reason-logging overload'
 
-        def explained = (text =~ /clearPending\("[^"]+"\);/).count
-        def silent = (text =~ /(?m)^\s*clearPending\(\);\s*$/).count
+        // 退出点分散在同包多个文件（主类 + PickupTicks 等），按全 transfer 包合计。
+        def allText = fileTree('src/main/java/com/slwold/jeirecipetree/client/transfer') {
+            include '*.java'
+        }.files.collect { it.getText('UTF-8') }.join('\n')
+        def explained = (allText =~ /clearPending\("[^"]+"\);/).count
+        def silent = (allText =~ /(?m)^\s*clearPending\(\);\s*$/).count
         assert explained >= 20 : "expected at least 20 explained exit points, found ${explained}"
+        // 允许的无原因清理：cancel()、transfer() 开头、以及带原因重载内部的最终清理。
         assert silent <= 3 : "unexpected silent clears (expected at most 3), found ${silent}"
 
         assert phase.getText('UTF-8').contains('public static TransferPhase of(') :

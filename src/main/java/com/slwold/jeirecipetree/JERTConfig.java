@@ -52,6 +52,13 @@ public final class JERTConfig {
                 "Finish one crafted item at a time during automatic crafting: craft a single item (with its own intermediates) before starting the next. Useful when the recipe needs unstackable intermediates such as tools. Applies to the vanilla crafting table and the player 2x2 grid only; AE2 and RTS terminals always craft everything in one pass.")
             .define("perItemCrafting", true);
 
+    public static final ModConfigSpec.BooleanValue HIDE_RAW_MATERIAL_ROWS =
+        BUILDER
+            .translation("jeirecipetree.configuration.hideRawMaterialRows")
+            .comment("左侧 JEI 侧栏只显示最终产物与中间品，隐藏原材料树行。总耗材清单不受影响。",
+                "Show only the final product and intermediates in the JEI sidebar; hide raw-material rows. The total-cost list is unaffected.")
+            .define("hideRawMaterialRows", true);
+
     public static final ModConfigSpec.BooleanValue DEVELOPER_MODE =
         BUILDER
             .translation("jeirecipetree.configuration.developerMode")
@@ -109,6 +116,7 @@ public final class JERTConfig {
         "disabledRecipeTypes",
         "automaticCraftingEnabled",
         "perItemCrafting",
+        "hideRawMaterialRows",
         "developerMode",
         "sophisticatedRestockEnabled",
         "treeTheme",
@@ -141,6 +149,10 @@ public final class JERTConfig {
             "#自动合成多个成品时逐个完成：一次只做到 1 个成品（含其所需中间物），做完再开始下一个。适合配方里有工具等不可堆叠中间物的情况；仅作用于原版工作台与玩家 2×2 合成格，AE2 与 RTS 终端始终一次做完。\n"
                 + "#Finish one crafted item at a time during automatic crafting: craft a single item (with its own intermediates) before starting the next. Useful when the recipe needs unstackable intermediates such as tools. Applies to the vanilla crafting table and the player 2x2 grid only; AE2 and RTS terminals always craft everything in one pass.\n"
                 + "perItemCrafting = true"),
+        java.util.Map.entry("hideRawMaterialRows",
+            "#左侧 JEI 侧栏只显示最终产物与中间品，隐藏原材料树行。总耗材清单不受影响。\n"
+                + "#Show only the final product and intermediates in the JEI sidebar; hide raw-material rows. The total-cost list is unaffected.\n"
+                + "hideRawMaterialRows = true"),
         java.util.Map.entry("developerMode",
             "#开发者模式：输出诊断日志（输入链路、面板区域、驱动状态）。\n"
                 + "#Developer mode: verbose diagnostic logging.\n"

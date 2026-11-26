@@ -1,5 +1,7 @@
 package com.slwold.jeirecipetree.client;
 
+import com.slwold.jeirecipetree.client.data.*;
+import com.slwold.jeirecipetree.client.transfer.RecipeTreeTransfer;
 import com.google.gson.JsonObject;
 import mezz.jei.api.gui.IRecipeLayoutDrawable;
 import net.minecraft.client.Minecraft;
@@ -69,6 +71,9 @@ public final class RecipeTreeSession {
         }
         tree = replacement;
         transientView = craftingTree != null;
+        JERTLog.debug("goal replace: root={} transient={} crafting={} keptCraftingTree={}",
+            tree.root() == null ? "-" : tree.root().ingredientKey, transientView,
+            tree.craftingMode(), craftingTree != null);
         pendingIngredient = null;
         pendingRecipeKey = null;
         resolutionParent = null;

@@ -1,10 +1,11 @@
 package com.slwold.jeirecipetree.mixin;
 
+import com.slwold.jeirecipetree.client.data.*;
+import com.slwold.jeirecipetree.client.transfer.RecipeTreeTransfer;
 import com.slwold.jeirecipetree.client.JeiTreeIntegration;
 import com.slwold.jeirecipetree.client.RenderLayers;
 
-import com.slwold.jeirecipetree.client.RecipeTreeTransfer;
-import com.slwold.jeirecipetree.client.SupplyLedger;
+import com.slwold.jeirecipetree.client.data.SupplyLedger;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;

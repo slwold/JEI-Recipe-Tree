@@ -1,6 +1,6 @@
 package com.slwold.jeirecipetree.mixin;
 
-import com.slwold.jeirecipetree.client.RecipeBookmarkNavigationContext;
+import com.slwold.jeirecipetree.client.jei.RecipeBookmarkNavigationContext;
 import mezz.jei.api.recipe.category.IRecipeCategory;
 import mezz.jei.api.recipe.IFocusGroup;
 import mezz.jei.api.recipe.IRecipeManager;

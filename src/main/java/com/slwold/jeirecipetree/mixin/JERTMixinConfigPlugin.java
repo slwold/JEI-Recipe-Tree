@@ -1,5 +1,6 @@
 package com.slwold.jeirecipetree.mixin;
 
+import com.slwold.jeirecipetree.client.jei.JeiCapabilities;
 import net.neoforged.fml.loading.FMLLoader;
 import net.neoforged.fml.loading.moddiscovery.ModFileInfo;
 import org.objectweb.asm.tree.ClassNode;

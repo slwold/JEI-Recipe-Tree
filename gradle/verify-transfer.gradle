@@ -1,7 +1,14 @@
+// 转移层队列/状态机检：防止 B4 的结构回潮。
+//
+// 迁移前递归合成的队列状态是 6 个裸静态字段 + 两段各 20 行的重复重置，
+// 当前一步的异步等待状态又是另外 18 个裸静态字段。一旦有人图省事加回一个
+// pendingXxx，症状是"递归合成多做/少做一轮"或"跨步骤串状态"，不抛异常、
+// 界面也不报错，只能靠玩家发现材料对不上。这里把结构钉死。
+
 tasks.register('verifyTransferQueue') {
     doLast {
-        def transfer = file('src/main/java/com/slwold/jeirecipetree/client/RecipeTreeTransfer.java')
-        def stepState = file('src/main/java/com/slwold/jeirecipetree/client/TransferStepState.java')
+        def transfer = clientSource('RecipeTreeTransfer.java')
+        def stepState = clientSource('TransferStepState.java')
         def core = file('src/core/java/com/slwold/jeirecipetree/core/CraftQueue.java')
         def parityTest = file('src/test/java/com/slwold/jeirecipetree/core/CraftQueueTest.java')
         [transfer, stepState, core, parityTest].each { assert it.exists() : "missing ${it}" }
@@ -12,6 +19,8 @@ tasks.register('verifyTransferQueue') {
         assert text.contains('private static final TransferStepState step = new TransferStepState()') :
             'the per-step async state must live in TransferStepState, not bare static fields'
 
+        // 用单词边界：方法名 completePendingCraft() 里含 "PendingCraft" 子串，
+        // 直接用 contains 会误报。
         def bareNames = ['pendingCrafts', 'pendingCraftIndex', 'PendingCraft',
                          'pendingLoadedBatches', 'pendingChunk', 'pendingCraftResultSlot',
                          'pendingMenuId', 'pendingResultSlot', 'pendingGenericResultProbe',
@@ -30,6 +39,7 @@ tasks.register('verifyTransferQueue') {
         assert text.contains('step.resetAll()') : 'clearing a session must delegate to TransferStepState'
         assert text.contains('step.resetStep()') : 'per-step reset must delegate to TransferStepState'
 
+        // 重置规则只允许有一份（旧实现在两个分支各抄一遍，共 20 行）
         def stateText = stepState.getText('UTF-8')
         assert stateText.contains('void resetStep()') && stateText.contains('void resetAll()') :
             'TransferStepState must own both reset scopes'

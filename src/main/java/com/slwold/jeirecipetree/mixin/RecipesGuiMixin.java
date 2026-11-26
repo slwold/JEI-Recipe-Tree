@@ -1,5 +1,6 @@
 package com.slwold.jeirecipetree.mixin;
 
+import com.slwold.jeirecipetree.client.jei.JeiReflectionCompat;
 import mezz.jei.gui.recipes.IRecipeGuiLogic;
 import mezz.jei.gui.recipes.RecipesGui;
 import org.spongepowered.asm.mixin.Final;
@@ -24,7 +25,7 @@ public abstract class RecipesGuiMixin {
         if (scrollY == 0) {
             return;
         }
-        if (insideBand(mouseX, mouseY, com.slwold.jeirecipetree.client.JeiReflectionCompat.readField(this, "previousRecipeCategory"), com.slwold.jeirecipetree.client.JeiReflectionCompat.readField(this, "nextRecipeCategory"))) {
+        if (insideBand(mouseX, mouseY, com.slwold.jeirecipetree.client.jei.JeiReflectionCompat.readField(this, "previousRecipeCategory"), com.slwold.jeirecipetree.client.jei.JeiReflectionCompat.readField(this, "nextRecipeCategory"))) {
             if (scrollY < 0) {
                 logic.nextRecipeCategory();
             } else {
@@ -34,7 +35,7 @@ public abstract class RecipesGuiMixin {
             return;
         }
 
-        if (insideBand(mouseX, mouseY, com.slwold.jeirecipetree.client.JeiReflectionCompat.readField(this, "previousPage"), com.slwold.jeirecipetree.client.JeiReflectionCompat.readField(this, "nextPage"))) {
+        if (insideBand(mouseX, mouseY, com.slwold.jeirecipetree.client.jei.JeiReflectionCompat.readField(this, "previousPage"), com.slwold.jeirecipetree.client.jei.JeiReflectionCompat.readField(this, "nextPage"))) {
             if (scrollY < 0) {
                 logic.nextPage();
             } else {
@@ -45,8 +46,8 @@ public abstract class RecipesGuiMixin {
     }
 
     private static boolean insideBand(double mouseX, double mouseY, Object left, Object right) {
-        Object leftArea = com.slwold.jeirecipetree.client.JeiReflectionCompat.tryInvoke(left, "getArea");
-        Object rightArea = com.slwold.jeirecipetree.client.JeiReflectionCompat.tryInvoke(right, "getArea");
+        Object leftArea = com.slwold.jeirecipetree.client.jei.JeiReflectionCompat.tryInvoke(left, "getArea");
+        Object rightArea = com.slwold.jeirecipetree.client.jei.JeiReflectionCompat.tryInvoke(right, "getArea");
         if (!(leftArea instanceof mezz.jei.common.util.ImmutableRect2i a)
             || !(rightArea instanceof mezz.jei.common.util.ImmutableRect2i b)) return false;
         return mouseX >= a.getX() && mouseX <= b.getX() + b.getWidth()
@@ -63,7 +64,7 @@ public abstract class RecipesGuiMixin {
         if (button != 0) {
             return;
         }
-        Object previous = com.slwold.jeirecipetree.client.JeiReflectionCompat.readField(this, "previousPage");
+        Object previous = com.slwold.jeirecipetree.client.jei.JeiReflectionCompat.readField(this, "previousPage");
         if (hits(previous, mouseX, mouseY)) {
             boolean moved = logic.previousPage();
             com.slwold.jeirecipetree.client.JERTLog.debug(
@@ -72,7 +73,7 @@ public abstract class RecipesGuiMixin {
             cir.setReturnValue(true);
             return;
         }
-        Object next = com.slwold.jeirecipetree.client.JeiReflectionCompat.readField(this, "nextPage");
+        Object next = com.slwold.jeirecipetree.client.jei.JeiReflectionCompat.readField(this, "nextPage");
         if (hits(next, mouseX, mouseY)) {
             boolean moved = logic.nextPage();
             com.slwold.jeirecipetree.client.JERTLog.debug(
@@ -86,7 +87,7 @@ public abstract class RecipesGuiMixin {
         if (button instanceof mezz.jei.gui.elements.IconButton icon) {
             return icon.isMouseOver(mouseX, mouseY);
         }
-        Object area = com.slwold.jeirecipetree.client.JeiReflectionCompat.tryInvoke(button, "getArea");
+        Object area = com.slwold.jeirecipetree.client.jei.JeiReflectionCompat.tryInvoke(button, "getArea");
         if (area instanceof mezz.jei.common.util.ImmutableRect2i rect) {
             return mouseX >= rect.getX() && mouseX <= rect.getX() + rect.getWidth()
                 && mouseY >= rect.getY() && mouseY <= rect.getY() + rect.getHeight();

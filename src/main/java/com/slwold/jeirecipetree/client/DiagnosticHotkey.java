@@ -1,5 +1,7 @@
 package com.slwold.jeirecipetree.client;
 
+import com.slwold.jeirecipetree.client.data.*;
+import com.slwold.jeirecipetree.client.ui.*;
 import com.slwold.jeirecipetree.JERT;
 import net.minecraft.client.Minecraft;
 import net.neoforged.api.distmarker.Dist;

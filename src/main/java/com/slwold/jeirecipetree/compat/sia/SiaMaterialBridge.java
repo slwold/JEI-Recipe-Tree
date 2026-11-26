@@ -1,5 +1,6 @@
 package com.slwold.jeirecipetree.compat.sia;
 
+import com.slwold.jeirecipetree.client.storage.StorageDriverRegistry;
 import com.slwold.jeirecipetree.client.JERTLog;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;

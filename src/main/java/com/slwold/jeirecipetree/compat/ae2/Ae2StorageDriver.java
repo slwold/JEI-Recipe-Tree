@@ -1,5 +1,10 @@
 package com.slwold.jeirecipetree.compat.ae2;
 
+import com.slwold.jeirecipetree.client.data.*;
+import com.slwold.jeirecipetree.client.storage.Ae2StorageIntegration;
+import com.slwold.jeirecipetree.client.storage.StorageDriver;
+import com.slwold.jeirecipetree.client.storage.StorageDriverRegistry;
+import com.slwold.jeirecipetree.client.storage.StorageNetworkIntegration;
 import appeng.api.stacks.AEItemKey;
 import appeng.api.stacks.AEKey;
 import appeng.api.storage.ILinkStatus;
@@ -8,12 +13,9 @@ import appeng.menu.me.common.GridInventoryEntry;
 import appeng.menu.me.common.IClientRepo;
 import appeng.menu.me.common.MEStorageMenu;
 import appeng.menu.slot.CraftingMatrixSlot;
-import com.slwold.jeirecipetree.client.FluidRecipeCompat;
+import com.slwold.jeirecipetree.client.data.FluidRecipeCompat;
 import com.slwold.jeirecipetree.client.JERTLog;
-import com.slwold.jeirecipetree.client.RecipeTreeData;
-import com.slwold.jeirecipetree.client.StorageDriver;
-import com.slwold.jeirecipetree.client.StorageDriverRegistry;
-import com.slwold.jeirecipetree.client.StorageNetworkIntegration;
+import com.slwold.jeirecipetree.client.data.RecipeTreeData;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
