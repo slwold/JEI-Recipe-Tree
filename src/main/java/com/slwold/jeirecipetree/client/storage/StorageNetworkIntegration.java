@@ -94,6 +94,10 @@ final public class StorageNetworkIntegration {
         StorageDriverRegistry.Result driven = StorageDriverRegistry.readWithSource(menu);
         StorageSnapshot drivenSnapshot = driven.snapshot();
         List<StoredStack> result = drivenSnapshot == null ? List.of() : drivenSnapshot.stacks();
+
+        JERTLog.debug("network scan: driver={} menu={} stacks={} fluids={}",
+            driven.driverId(), menu.getClass().getSimpleName(), result.size(),
+            drivenSnapshot == null ? 0 : drivenSnapshot.fluids().size());
         List<StoredFluid> fluidResult = drivenSnapshot == null ? List.of() : drivenSnapshot.fluids();
         fluidResult = mergeFluids(fluidResult);
         boolean snapshotChanged = menu != cachedMenu
@@ -487,6 +491,70 @@ final public class StorageNetworkIntegration {
             return Boolean.TRUE.equals(handled);
         } catch (ReflectiveOperationException | RuntimeException | LinkageError ignored) {
             return false;
+        }
+    }
+
+    static boolean depositIntegratedDirect(Object menu, ItemStack stack, int amount, int playerSlot) {
+        if (!isIntegratedTerminalMenu(menu) || stack == null || stack.isEmpty() || amount <= 0 || playerSlot < 0) {
+            return false;
+        }
+        try {
+            Object tab = integratedItemClientTab(menu);
+            if (tab == null || !(menu instanceof AbstractContainerMenu container)) {
+                JERTLog.debug("integrated: direct deposit skipped (no item tab / menu)");
+                return false;
+            }
+            int channel = intValue(invokeNoArg(menu, "getSelectedChannel"));
+            Method click = findCompatibleMethod(
+                tab.getClass(), "handleClick", AbstractContainerMenu.class,
+                int.class, int.class, int.class, boolean.class, boolean.class, int.class, boolean.class);
+            if (click == null) {
+                JERTLog.debug("integrated: direct deposit skipped (no handleClick)");
+                return false;
+            }
+
+            int slotId = integratedSlotId(tab, channel, stack);
+            if (slotId < 0) {
+                JERTLog.debug("integrated: direct deposit skipped (item not in network view): {}", stack);
+                return false;
+            }
+
+            click.invoke(tab, container, channel, slotId, 2, false, false, -1, false);
+            int capped = Math.min(amount, Math.max(1, intValue(readField(tab, "activeSlotQuantity"))));
+            setActiveSlotQuantity(tab, capped);
+
+            Object handled = click.invoke(tab, container, channel, 0, 0, false, false, playerSlot, false);
+            JERTLog.debug("integrated: direct deposit slot={} playerSlot={} amount={} handled={}",
+                slotId, playerSlot, capped, handled);
+            return Boolean.TRUE.equals(handled) || handled == null;
+        } catch (ReflectiveOperationException | RuntimeException | LinkageError error) {
+            JERTLog.debug("integrated: direct deposit failed: {}", String.valueOf(error));
+            return false;
+        }
+    }
+
+    private static int integratedSlotId(Object tab, int channel, ItemStack wanted) throws ReflectiveOperationException {
+        Object entries = invoke(tab, "createUnfilteredIngredientsView", int.class, channel);
+        if (!(entries instanceof Iterable<?> iterable)) {
+            return -1;
+        }
+        int index = 0;
+        for (Object entry : iterable) {
+            if (invokeNoArg(entry, "getCraftingOption") == null) {
+                ItemStack stack = stackOf(invokeNoArg(entry, "getInstance"));
+                if (!stack.isEmpty() && ItemStack.isSameItemSameComponents(stack, wanted)) {
+                    return index;
+                }
+            }
+            index++;
+        }
+        return -1;
+    }
+
+    private static void setActiveSlotQuantity(Object tab, int amount) throws ReflectiveOperationException {
+        Method setter = findCompatibleMethod(tab.getClass(), "setActiveSlotQuantity", int.class);
+        if (setter != null) {
+            setter.invoke(tab, amount);
         }
     }
 

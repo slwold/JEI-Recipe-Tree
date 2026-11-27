@@ -127,6 +127,24 @@ public final class StorageDriverRegistry {
         }
     }
 
+    public static boolean supportsDirectDeposit(Object menu) {
+        StorageDriver driver = claiming(menu);
+        return driver != null && driver.supportsDirectDeposit();
+    }
+
+    public static boolean depositDirect(Object menu, ItemStack stack, int amount, int playerSlot) {
+        StorageDriver driver = claiming(menu);
+        if (driver == null) {
+            return false;
+        }
+        try {
+            return driver.depositDirect(menu, stack, amount, playerSlot);
+        } catch (LinkageError | RuntimeException error) {
+            disable(driver, error);
+            return false;
+        }
+    }
+
     private static void disable(StorageDriver driver, Throwable failure) {
         if (DRIVERS.remove(driver)) {
             FAILED.add(driver.id());

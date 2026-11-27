@@ -5,6 +5,8 @@ import com.slwold.jeirecipetree.client.jei.*;
 
 import org.jetbrains.annotations.Nullable;
 
+import net.minecraft.world.item.ItemStack;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -107,6 +109,16 @@ public final class StorageDrivers {
             return snapshot(
                 StorageNetworkIntegration.integratedTerminalStacks(menu),
                 StorageNetworkIntegration.integratedTerminalFluids(menu));
+        }
+
+        @Override
+        public boolean supportsDirectDeposit() {
+            return true;
+        }
+
+        @Override
+        public boolean depositDirect(Object menu, ItemStack stack, int amount, int playerSlot) {
+            return StorageNetworkIntegration.depositIntegratedDirect(menu, stack, amount, playerSlot);
         }
     }
 

@@ -7,10 +7,12 @@
 
 **🐛 fix**
 - RTS crafting terminal produced dozens of items from a single click. Taking the result now uses `PICKUP` (one item to the cursor) instead of `QUICK_MOVE`, matching the fix already applied to Tom's terminal.
+- Integrated Dynamics/Terminals crafting terminals now restock directly from the network into the player inventory instead of relying on SIA moving stock from nearby containers. Network items are no longer counted twice as both container and network stock.
 
 ---
 
 - RTS 合成终端一次点击做出几十个：取走结果改用 `PICKUP`（一次 1 个到光标），不再用 `QUICK_MOVE`，与 Tom's 终端已有的修复对齐。
+- 动态联合（Integrated Dynamics/Terminals）终端补料改为从网络直放玩家背包，不再靠 SIA 从附近容器搬；同一物品也不再被同时记成容器库存和网络库存，数量显示不再翻倍。
 
 ## 4.4 — 2026-11-26
 

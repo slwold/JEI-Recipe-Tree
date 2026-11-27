@@ -33,4 +33,12 @@ public interface StorageDriver {
     default boolean depositCarried(Object menu) {
         return false;
     }
+
+    default boolean depositDirect(Object menu, ItemStack stack, int amount, int playerSlot) {
+        return false;
+    }
+
+    default boolean supportsDirectDeposit() {
+        return false;
+    }
 }

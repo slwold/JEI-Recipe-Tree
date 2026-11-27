@@ -119,6 +119,10 @@ final class StorageRestock {
         if (usable.isEmpty()) {
             return false;
         }
+        if (StorageDriverRegistry.supportsDirectDeposit(menu)) {
+
+            return beginCursor(menu, usable);
+        }
         if (StorageDriverRegistry.canWithdraw(menu)) {
             return beginCursor(menu, usable);
         }
@@ -324,6 +328,22 @@ final class StorageRestock {
             return ++frames > WAIT_FRAMES
                 ? noteFailure(menu, player, "cursor_timeout")
                 : Step.WAIT;
+        }
+
+        if (StorageDriverRegistry.supportsDirectDeposit(menu)) {
+            int slot = findDestination(menu, player, current.stack(), remaining);
+            if (slot < 0) {
+                return noteFailure(menu, player, "no_room");
+            }
+            if (!StorageDriverRegistry.depositDirect(menu, current.stack(), remaining, slot)) {
+                return noteFailure(menu, player, "direct_deposit_rejected");
+            }
+            JERTLog.debug("restock: direct deposit {} x{} -> slot {}",
+                current.key(), remaining, slot);
+            takenTotal += remaining;
+            remaining = 0;
+            current = null;
+            return Step.CONTINUE;
         }
         if (!StorageDriverRegistry.requestWithdraw(menu, current.stack(), remaining)) {
             return noteFailure(menu, player, "withdraw_rejected");

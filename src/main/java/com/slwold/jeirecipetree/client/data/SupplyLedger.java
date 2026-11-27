@@ -452,12 +452,28 @@ public final class SupplyLedger {
         if (isBeyondNetworkSlot(slot)) {
             return false;
         }
+
+        if (isIntegratedNetworkSlot(slot)) {
+            return false;
+        }
         return !isAe2FunctionalSlot(slot);
     }
 
     private static boolean isBeyondNetworkSlot(Slot slot) {
         String name = slot.getClass().getName();
         return name.contains("beyonddimensions") && name.contains("TypedSlot");
+    }
+
+    private static boolean isIntegratedNetworkSlot(Slot slot) {
+        Object container = slot.container;
+        if (container != null) {
+            String containerName = container.getClass().getName();
+            if (containerName.contains("integratedterminals") && containerName.contains("Storage")) {
+                return true;
+            }
+        }
+        String slotName = slot.getClass().getName();
+        return slotName.contains("integratedterminals") && slotName.contains("StorageSlot");
     }
 
     private static boolean isAe2WrappedPlayerInventory(Slot slot) {

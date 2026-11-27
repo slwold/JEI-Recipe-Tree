@@ -113,7 +113,7 @@ public final class TransferRestockPlanner {
     }
 
     public static boolean canRestock(AbstractContainerMenu menu, List<StorageRestock.Need> needs) {
-        if (StorageDriverRegistry.canWithdraw(menu)) {
+        if (StorageDriverRegistry.supportsDirectDeposit(menu) || StorageDriverRegistry.canWithdraw(menu)) {
             return coverable(menu, needs);
         }
         return SafeConfig.sophisticatedRestockEnabled() && SiaMaterialBridge.available();
