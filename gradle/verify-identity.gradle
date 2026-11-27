@@ -1,10 +1,3 @@
-// 身份层机检：防止 ItemRef 迁移"看起来做了、实际又退回裸字符串"。
-//
-// 背景：B2e 的失败模式不是编译错误，而是**静默回潮**——某天有人在算法层图省事
-// 又写回 `Map<String, Long>` + `ingredientKey(stack)`，类型一样能编过、界面也不报错，
-// 但物品身份、组合签名、节点路径三种 String 又混成一类，1.20.1 移植时才发现抽象白做。
-// 所以把"主流程必须用 ItemRef"变成构建期断言。
-
 tasks.register('verifyIdentityLayer') {
     doLast {
         def read = { String name -> clientSource(name).getText('UTF-8') }
@@ -15,19 +8,16 @@ tasks.register('verifyIdentityLayer') {
         assert keys.contains('getUniqueId(stack, UidContext.Ingredient)') :
             'the JEI unique-id algorithm must live in ItemKeys (T2 only needs to change this one place)'
 
-        // 算法/供应/查询/模型四层都必须真正使用 ItemRef，而不是只有测试在用。
         def adopters = ['SupplyLedger.java', 'RecipePlanner.java', 'RecipeLookup.java', 'RecipeTreeData.java']
         def missing = adopters.findAll { !read(it).contains('com.slwold.jeirecipetree.core.ItemRef') }
         assert missing.isEmpty() : "ItemRef is still dead code in: ${missing}"
 
-        // ingredientKey 只能是兼容入口，不许把算法抄回来。
         def data = read('RecipeTreeData.java')
         assert !data.contains('getUniqueId(stack') :
             'the identity algorithm leaked back into RecipeTreeData; delegate to ItemKeys instead'
         assert data.contains('ItemKeys.legacy(ItemKeys.of(stack))') :
             'ingredientKey must delegate to ItemKeys (verbatim contract, see ItemRefKeyParityTest)'
 
-        // 复合签名键是有意保留 String 的，注释必须在，防止后来者"顺手统一成 ItemRef"。
         assert data.contains('Map<String, MutableCost> totalCosts') :
             'cost signatures must stay String-keyed (they are candidate-combination keys, not identity)'
         assert data.contains('Map<ItemRef, MutableCost> totalRemainders') :

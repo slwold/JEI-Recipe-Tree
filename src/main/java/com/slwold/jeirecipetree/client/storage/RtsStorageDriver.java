@@ -4,8 +4,11 @@ import com.slwold.jeirecipetree.client.data.*;
 import com.slwold.jeirecipetree.client.*;
 import com.slwold.jeirecipetree.client.jei.*;
 
+import net.minecraft.client.Minecraft;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.inventory.AbstractContainerMenu;
+import net.minecraft.world.inventory.ClickType;
 import net.minecraft.world.item.ItemStack;
 import org.jetbrains.annotations.Nullable;
 
@@ -36,6 +39,22 @@ public final class RtsStorageDriver implements StorageDriver {
             return false;
         }
         return MENU_CLASS.equals(menu.getClass().getName());
+    }
+
+    public static Boolean takeResultOne(Object menu, int resultSlot, boolean send) {
+        if (!send) {
+            return Boolean.TRUE;
+        }
+        Minecraft minecraft = Minecraft.getInstance();
+        if (!(menu instanceof AbstractContainerMenu container)
+            || minecraft.player == null || minecraft.gameMode == null
+            || resultSlot < 0 || resultSlot >= container.slots.size()) {
+            return false;
+        }
+        minecraft.gameMode.handleInventoryMouseClick(
+            container.containerId, resultSlot, 0, ClickType.PICKUP, minecraft.player);
+        JERTLog.debug("rts: pickup one result via PICKUP (no QUICK_MOVE refill loop)");
+        return Boolean.TRUE;
     }
 
     @Override

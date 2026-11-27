@@ -1,15 +1,3 @@
-// 分析结果对拍：比较两份 F9 诊断快照里的 [analysis trace] 分节。
-//
-// 用法（B2e 前后各导一份）：
-//   ./gradlew compareAnalysisTraces -Pbefore=logs/jert-diagnostics-A.txt -Pafter=logs/jert-diagnostics-B.txt
-//
-// 为什么要单独一节而不是直接 diff 整个文件：诊断快照里本来就含时间戳、屏幕类名、
-// 性能指标"距今多少毫秒"这类**本来就该不同**的信息，整文件比对永远失败。
-// 只比对分析结果分节，才能把"迁移是否改了数量"与"这两份文件不是同一秒生成的"区分开。
-//
-// 比对内容受 Diagnostics#appendAnalysisTrace 的格式契约保护：行内字段顺序与排序规则
-// 不得随意改动；改动即等于作废基线，需要重新采集 before。
-
 tasks.register('compareAnalysisTraces') {
     doLast {
         assert project.hasProperty('before') && project.hasProperty('after') :
@@ -19,7 +7,6 @@ tasks.register('compareAnalysisTraces') {
         assert beforeFile.isFile() : "before trace not found: ${beforeFile}"
         assert afterFile.isFile() : "after trace not found: ${afterFile}"
 
-        // 分节从 "[analysis trace]" 起，到下一个 "[...]" 分节或文件尾止。
         def sectionOf = { File source ->
             def lines = source.readLines('UTF-8')
             int start = lines.findIndexOf { it.trim() == '[analysis trace]' }

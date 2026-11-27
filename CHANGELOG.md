@@ -3,6 +3,15 @@
 > 版本线 2026-11-12 重排：原先 63 条 `2.x.y` 按阶段归并为 `2.0`–`2.15`，改名与重排本身作为
 > `3.0` 起点（非功能改动，不记条目）。1.x 时代（另一个项目形态）的记录不在本文件内。
 
+## 4.4.1 — 2026-11-27
+
+**🐛 fix**
+- RTS crafting terminal produced dozens of items from a single click. Taking the result now uses `PICKUP` (one item to the cursor) instead of `QUICK_MOVE`, matching the fix already applied to Tom's terminal.
+
+---
+
+- RTS 合成终端一次点击做出几十个：取走结果改用 `PICKUP`（一次 1 个到光标），不再用 `QUICK_MOVE`，与 Tom's 终端已有的修复对齐。
+
 ## 4.4 — 2026-11-26
 
 **🐛 fix**

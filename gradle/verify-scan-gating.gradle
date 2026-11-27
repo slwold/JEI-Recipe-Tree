@@ -1,8 +1,3 @@
-// 库存扫描门控（R4 / R5 / 网络口径）与递归搜索删除的静态面。
-//
-// 为什么单独一条：这两处的退化都是"跑起来看着对、但每帧多扫几次背包或网络"，
-// 肉眼很难一眼看出来。计数与断言必须在构建期钉死，否则几轮修补后就会悄悄回潮。
-
 tasks.register('verifyScanGating') {
     doLast {
         def read = { String name -> clientSource(name).getText('UTF-8') }
@@ -14,8 +9,6 @@ tasks.register('verifyScanGating') {
             'the scan cache key must be an explicit revision, not a 50 ms tick (R5)'
         assert ledger.contains('MIN_SCAN_INTERVAL_NANOS') :
             'two real scans must be throttled'
-        // 2.14 阶段：revision 原来只由「切换制作模式」和树页 tick 递增，站在容器界面里搬料时
-        // 缓存永不失效（扫描实际只在切模式那一下发生）。读口必须能自己发现内容变化。
         assert ledger.contains('detectContentChange()') :
             'snapshot() must self-detect content changes, not rely on a screen being focused'
         assert ledger.contains('CONTENT_HASH_INTERVAL_NANOS') :
@@ -24,10 +17,6 @@ tasks.register('verifyScanGating') {
             'the content hash must cover the open container, not just the player inventory'
         assert ledger.contains('static long scanCount()') :
             'scanCount() is the acceptance counter'
-        // 3.10.12 起规划口径改为「玩家 0–35 + 当前终端的网络库存」：
-        // AE2 合成终端的产物回网络，只看背包会出现"材料刚做完、树上仍显示缺"。
-        // 但网络**只能**通过 StorageNetworkIntegration 的快照读（驱动层有 5 tick + 内容指纹
-        // 缓存）；不许在这里直接遍历 AE2 / RS 的仓库 API —— 那才是 C8 要防的卡顿来源。
         assert ledger.contains('planningSupply()') :
             'the planning path must add the terminal network stock on top of the player view'
         assert ledger.contains('StorageNetworkIntegration.snapshot()') :

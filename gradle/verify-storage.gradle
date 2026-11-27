@@ -1,9 +1,3 @@
-// 存储驱动聚合机检：防止 B3 的结构悄悄退化回"五层 if/else 瀑布"。
-//
-// 退化后的症状很难查：驱动注册表还在、专属驱动类还在、F9 也列得出来，
-// 但 storedStacks() 又变成手写分支，新增一个存储 mod 时就必须回去改主流程。
-// 这里把"只能走聚合器"和"优先级必须显式且兜底最大"变成构建期断言。
-
 tasks.register('verifyStorageDrivers') {
     doLast {
         def drivers = clientSource('StorageDrivers.java')
@@ -31,7 +25,6 @@ tasks.register('verifyStorageDrivers') {
         assert values.toSet().size() == values.size() : "driver priorities must be distinct: ${values}"
         assert values == values.sort() : "priority constants must be declared in ascending order: ${values}"
 
-        // AE2 直接 API 驱动的优先级必须落在专属反射路径与兜底之间
         def ae2 = file('src/main/java/com/slwold/jeirecipetree/compat/ae2/Ae2StorageDriver.java').getText('UTF-8')
         def ae2Matcher = (ae2 =~ /(?s)int priority\(\)\s*\{\s*return (\d+);/)
         assert ae2Matcher.find() : 'Ae2StorageDriver must declare an explicit priority()'
@@ -39,14 +32,12 @@ tasks.register('verifyStorageDrivers') {
         assert ae2Priority > 40 && ae2Priority < 1000 :
             "AE2 direct driver priority ${ae2Priority} must sit between the reflective drivers and the fallback"
 
-        // 主流程只允许一次聚合调用，不允许再出现瀑布的分类变量
         def integrationText = integration.getText('UTF-8')
         assert integrationText.contains('StorageDriverRegistry.readWithSource(menu)') :
             'storedStacks() must read through the driver registry'
         assert !integrationText.contains('boolean refinedMenu = isRefinedStorageMenu(menu);') :
             'the old waterfall leaked back into storedStacks()'
 
-        // 三个注册入口齐全，且兜底在 AE2 之后
         def entryText = entry.getText('UTF-8')
         assert entryText.contains('StorageDrivers.registerStandard()') : 'standard drivers are never registered'
         assert entryText.contains('Ae2StorageDriver.register()') : 'AE2 driver is never registered'
@@ -57,9 +48,6 @@ tasks.register('verifyStorageDrivers') {
         println "Storage driver checks passed: ${priorities.size()} priorities ascending, " +
             "AE2=${ae2Priority}, single aggregator call, 3 registration points"
 
-        // 3.10.8：AE2 19.x（MC 1.21.1）根本没有 appeng.core.network.NetworkHandler，
-        // 旧实现只找它，找不到就 return false —— 实机表现是"搬料/取产物完全没反应、日志也没有"。
-        // 现在必须走 NeoForge 的 PacketDistributor；把这条钉住，别再退回去。
         def ae2Reflection = clientSource('Ae2StorageIntegration.java').getText('UTF-8')
         assert ae2Reflection.contains('PacketDistributor.sendToServer(payload)') :
             'AE2 serverbound payloads must be sent through the NeoForge PacketDistributor (AE2 19.x has no NetworkHandler)'

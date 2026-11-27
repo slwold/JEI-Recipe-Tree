@@ -1,22 +1,6 @@
-// core 层隔离校验
-//
-// 为什么要单独一个任务：
-//   core 是 1.21.1 与将来 1.20.1 两套构建**共享**的那部分代码（树模型、供应口径、取料规则）。
-//   一旦有人在 core 里 import 了 ItemStack / Minecraft / NeoForge 类型，T1 照样编得过去，
-//   等到做 T2 移植那天才发现——离引入问题的提交已经很远，回溯成本最高。
-//   所以在 T1 构建里就把它拦下来，让问题在"提交当天"暴露。
-//
-// 三道闸门：
-//   1) 类路径：core 的编译类路径里不允许出现 MC / NeoForge / JEI 产物（编译器层面的物理隔离）；
-//   2) 源码：core 源码不允许出现版本相关包的引用（含全限定名，防写成 net.minecraft.xxx.Yyy）；
-//   3) 方向：core 不许反向 import 上层包（ui / client / compat / mixin / 模组入口）。
-// 第 1 条是根本保证，第 2、3 条是对"类路径恰好干净但写法已经跑偏"的补充。
-
 tasks.register('verifyCoreIsolation') {
-    // 任务名来自 source set 命名规则：core -> compileCoreJava
     dependsOn 'compileCoreJava'
     doLast {
-        // ---- 闸门 1：编译类路径 ----
         def polluting = configurations.coreCompileClasspath.files.findAll { file ->
             def name = file.name.toLowerCase(java.util.Locale.ROOT)
             name.contains('minecraft') || name.contains('neoforge') || name.startsWith('jei-')
@@ -27,15 +11,11 @@ tasks.register('verifyCoreIsolation') {
         def sources = fileTree('src/core/java') { include '**/*.java' }
         assert !sources.isEmpty() : 'core source set is empty: src/core/java has no .java files'
 
-        // ---- 闸门 2：版本相关包引用 ----
-        // 用 "appeng." 带点的形式，避免误伤注释里出现 appengine 之类的普通单词。
         def versionBound = [
             'net.minecraft', 'net.neoforged', 'net.minecraftforge',
             'mezz.jei', 'appeng.', 'com.mojang', 'org.lwjgl'
         ]
         def leaked = []
-        // ---- 闸门 3：反向依赖 ----
-        // 注意 com.slwold.jeirecipetree.core 是 core 自己的包，不在禁用名单里。
         def upward = [
             'com.slwold.jeirecipetree.client',
             'com.slwold.jeirecipetree.compat',

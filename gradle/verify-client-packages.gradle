@@ -1,11 +1,3 @@
-// 客户端分包规则（30 法则）。
-//
-// 为什么单独一条：client 曾经把 79 个类平铺在一个包里，同包互调不需要 import，
-// 依赖方向既不可见也不可度量。拆包后必须守住两件事：
-//   1. 一个类文件所在的目录与它的 package 声明一致；
-//   2. 每个包不超过 30 个类（Lippert & Roock《大型软件项目重构》的 30 法则）。
-// 只查结构，不查行为：本任务与 verifyDocCounts 的机检计数直接挂钩。
-
 tasks.register('verifyClientPackages') {
     doLast {
         def root = file('src/main/java/com/slwold/jeirecipetree/client')

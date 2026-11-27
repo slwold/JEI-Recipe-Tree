@@ -329,6 +329,10 @@ final public class StorageNetworkIntegration {
         if (TomsStorageDriver.isCraftingTerminalMenu(menu)) {
             return TomsStorageDriver.takeResultOne(menu, resultSlot, send);
         }
+
+        if (RtsStorageDriver.isTerminalMenu(menu)) {
+            return RtsStorageDriver.takeResultOne(menu, resultSlot, send);
+        }
         if (!isRefinedStorageMenu(menu) && !isBeyondMenu(menu) && !isIntegratedTerminalMenu(menu)) {
             return null;
         }

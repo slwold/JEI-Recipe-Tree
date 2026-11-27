@@ -1,27 +1,3 @@
-// mixin 注入点静态校验（ModDevGradle 版）
-//
-// 设计取舍：
-// 1. 用 ASM 解析真实 JEI class 模型最理想，但逐个校验 @Shadow 描述符 / @Accessor 返回类型 /
-//    @Inject 回调签名需要 asm-tree，本机 Gradle 缓存里没有可离线解析的副本，走 buildscript 会被
-//    "--offline" 直接拒绝，因此改为**零依赖**实现：
-//      - 目标类是否存在 → 查 JEI jar 的 zip 条目；
-//      - 目标方法是否存在 → 在目标 class 的常量池字节里查方法名（ASCII，可直接字符串匹配）。
-//    代价：不校验描述符与回调参数顺序，能力弱于上游；收益是离线可用、无额外依赖。
-// 2. 上游断言过的 CreativeTabBar / CreativeTabGridCompat / JeiModalRenderMixin 等类已在精简中删除，
-//    对应断言移除。
-// 3. JEI 来源从上游的 localRuntime 改为专用 jeiModel 配置（MDG 无 localRuntime）。
-// 自身 mixin 配置校验：条目格式与类文件存在性
-//
-// mixins.json 声明了 package 前缀时，条目必须只是类名；
-// 写成全限定名会被 Mixin 再拼一次包前缀，导致 "was not found" 启动崩溃。
-// 这里在构建期就把两种错误拦下：条目含包前缀、条目类文件不存在。
-// Minecraft 侧注入点的描述符校验
-//
-// 典型错误：@Inject 回调的描述符写成
-// (Minecraft, GuiGraphics, int, int, float, CallbackInfo)，而目标 render 的签名是
-// (GuiGraphics, int, int, float) —— Mixin 在运行期抛 InvalidInjectionException 直接崩。
-// 这里把「目标方法 + 期望描述符」列成清单，构建期就到 MC jar 的常量池里查描述符，
-// 写错签名会在构建阶段失败，而不是启动时。
 tasks.register('verifyMinecraftMixinTargets') {
     dependsOn 'classes'
     doLast {
@@ -67,25 +43,15 @@ tasks.register('verifyMinecraftMixinTargets') {
     }
 }
 
-/**
- * 已删除功能的回归闸门。
- *
- * 一次功能删除如果只删了一半（代码删了、配置/校验/文案还在），
- * 后面每一轮都会有人在半截状态上继续改，问题反复回归。这里把“已删除功能的关键标识”
- * 列成黑名单，源码里再出现就直接构建失败——删除动作必须彻底，且不许悄悄复活。
- */
 tasks.register('verifyRemovedFeatures') {
     doLast {
         def banned = [
-            'RecipeBookPage',           // 书页内容区注入点（已删除）
-            'RecipeTreeBookContent',    // 书页替换的渲染/交互类（已删除）
-            'replaceVanillaRecipeBook'  // 书页替换的配置项（已删除）
+            'RecipeBookPage',
+            'RecipeTreeBookContent',
+            'replaceVanillaRecipeBook'
         ]
         def offenders = []
         fileTree('src/main/java').matching { include '**/*.java' }.each { source ->
-            // 只扫**代码**：注释里提及被删除的特性是合理的（例如说明"旧配置里残留着
-            // 某个已删除的键，模组会把它清掉"）。把注释也当违规会让正确的说明
-            // 反而无法写出来。
             def text = stripComments(source.getText('UTF-8'))
             banned.each { token ->
                 if (text.contains(token)) {
@@ -124,16 +90,6 @@ tasks.register('verifyOwnMixins') {
     }
 }
 
-/**
- * JEI 版本判定名的防漂移校验。
- *
- * 背景：判定"这套 JEI 走哪条输入线"的同一个类名，出现在三个地方——
- *   - {@code client/JeiCapabilities}（运行期探测，唯一事实来源）；
- *   - {@code mixin/JERTMixinConfigPlugin}（mixin 变换期判定，故意零依赖、不复用上面的类）；
- *   - 本脚本（构建期从 jar 条目算 modernInput / transferService）。
- * 三者各有存在的理由，但**只要有一处改了名字而其余没跟上，症状是"某版本上功能静默失效"**，
- * 而且不会有任何异常——这是最难查的一类问题。所以在构建期强制三者一致。
- */
 tasks.register('verifyCapabilityParity') {
     doLast {
         def decisive = [
@@ -177,10 +133,6 @@ tasks.register('verifyJeiCompatibility') {
             }
         }
 
-        // 版本择一生效的 mixin：与 JERTMixinConfigPlugin 的判定保持一致
-        // 修正过的坑：entries 里全是 "xxx.class" 条目，早先少写了 .class 后缀，
-        // 导致这两个标志恒为 false —— 于是本脚本永远按"旧版输入线"去挑 mixin 校验，
-        // 实际在 19.54（transferService 存在）上跑的是另一套。标志错了不会报错，只会校验错对象。
         boolean modernInput = entries.contains('mezz/jei/common/input/IInputTarget.class')
         boolean transferService = entries.contains('mezz/jei/common/transfer/RecipeTransferService.class')
         def onlyLegacy = ['IngredientLookupStateLegacyMixin']
@@ -203,7 +155,6 @@ tasks.register('verifyJeiCompatibility') {
                     !(simple in skipWhenModern && modernInput)
             if (!applicable) return
 
-            // 目标类：imports 映射后解析 targets = "..." / targets = {"a","b"} / value = X.class 三种写法
             def imports = [:]
             (text =~ /(?m)^import\s+([\w.]+)\.([A-Za-z_]\w*);/).each { all, pkg, name -> imports[name] = pkg + '.' + name }
             def declared = [] as Set
@@ -218,10 +169,8 @@ tasks.register('verifyJeiCompatibility') {
             }
             assert !declared.isEmpty() : "${simple}: cannot resolve @Mixin target"
 
-            // 只校验 JEI 内部目标；AE2/RS/BeyondDimensions 等可选 mod 不在 jeiModel 里
             def jeiTargets = declared.findAll { it.startsWith('mezz.jei.') }
             skippedForeign += (declared.size() - jeiTargets.size())
-            // 目标缺失可接受的情况：@Pseudo（显式允许），或多目标并列（旧/新包路径择一存在）
             boolean pseudo = text.contains('@Pseudo')
             boolean alternativeTargets = jeiTargets.size() > 1
             def presentTargets = []
@@ -238,11 +187,8 @@ tasks.register('verifyJeiCompatibility') {
                 targets++
             }
 
-            // 目标全在 JEI 之外（原版 / AE2 / RS 等可选 mod）时不校验方法，只统计
             if (presentTargets.isEmpty()) return
 
-            // @Redirect 的目标是字节码里的方法调用。描述符里的括号和跨行字符串拼接让
-            // 括号配对不可靠，改成「取注解后的窗口 + 拼接其中所有字符串字面量」再匹配。
             int redirectIndex = text.indexOf('@Redirect')
             while (redirectIndex >= 0) {
                 int windowEnd = Math.min(text.length(), redirectIndex + 600)
@@ -263,8 +209,6 @@ tasks.register('verifyJeiCompatibility') {
                 redirectIndex = text.indexOf('@Redirect', redirectIndex + 1)
             }
 
-            // @Inject(method = "a" | {"a","b"}) 里的方法名必须在目标类的常量池里出现。
-            // require = 0 表示「允许注入不到」，用于跨版本兼容，跳过。
             def injectMatcher = (text =~ /(?s)@Inject\s*\((?:[^()]|\([^()]*\))*\)/)
             while (injectMatcher.find()) {
                 String block = injectMatcher.group(0)
@@ -294,7 +238,6 @@ tasks.register('verifyJeiCompatibility') {
     }
 }
 
-/** 去掉 Java 源码里的行注释与块注释，只留代码——机检扫"是否真的用了这个特性"时用。 */
 static String stripComments(String source) {
     def out = new StringBuilder()
     int i = 0
